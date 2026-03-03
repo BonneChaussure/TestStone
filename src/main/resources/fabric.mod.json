@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "teststone",
+  "version": "${version}",
+  "name": "TestStone",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/teststone/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": [
+      "org.BonneChaussure.teststone.client.TeststoneDataGenerator"
+    ],
+    "client": [
+      "org.BonneChaussure.teststone.client.TeststoneClient"
+    ],
+    "main": [
+      "org.BonneChaussure.teststone.Teststone"
+    ]
+  },
+  "mixins": [
+    "teststone.mixins.json",
+    {
+      "config": "teststone.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
