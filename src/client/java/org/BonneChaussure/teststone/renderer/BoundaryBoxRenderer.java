@@ -13,7 +13,7 @@ public class BoundaryBoxRenderer {
     // Color of the box
     private final static float r = 1f, g = 0f, b = 0f, a = 1f;
 
-    private static void render(WorldRenderContext ctx) {
+    public static void render(WorldRenderContext ctx) {
         if (BoundaryBoxClientData.boxes.isEmpty()) return;
 
         MatrixStack matrices = ctx.matrixStack();
