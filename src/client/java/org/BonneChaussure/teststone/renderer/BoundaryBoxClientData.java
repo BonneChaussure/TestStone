@@ -6,5 +6,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class BoundaryBoxClientData {
-    public static final Map<BlockPos, BlockPos[]> boxes = new ConcurrentHashMap<>();
+
+    public record BoxData(BlockPos corner1, BlockPos corner2, int color) {}
+
+    public static final Map<BlockPos, BoxData> boxes = new ConcurrentHashMap<>();
 }

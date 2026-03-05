@@ -7,7 +7,7 @@ import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
-public record SetBoundaryBoxPacket(BlockPos bench, BlockPos corner1, BlockPos corner2) implements CustomPayload {
+public record SetBoundaryBoxPacket(BlockPos bench, BlockPos corner1, BlockPos corner2, int color) implements CustomPayload {
 
     public static final CustomPayload.Id<SetBoundaryBoxPacket> ID =
             new CustomPayload.Id<>(Identifier.of("teststone", "set_boundary_box"));
@@ -17,8 +17,9 @@ public record SetBoundaryBoxPacket(BlockPos bench, BlockPos corner1, BlockPos co
                 buf.writeBlockPos(packet.bench());
                 buf.writeBlockPos(packet.corner1());
                 buf.writeBlockPos(packet.corner2());
+                buf.writeInt(packet.color());
             },
-            buf -> new SetBoundaryBoxPacket(buf.readBlockPos(), buf.readBlockPos(), buf.readBlockPos())
+            buf -> new SetBoundaryBoxPacket(buf.readBlockPos(), buf.readBlockPos(), buf.readBlockPos(), buf.readInt())
     );
 
     @Override

@@ -14,7 +14,7 @@ public class TeststoneClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ClientPlayNetworking.registerGlobalReceiver(SetBoundaryBoxPacket.ID, (payload, context) -> {
-            BoundaryBoxClientData.boxes.put(payload.bench(), new BlockPos[]{payload.corner1(), payload.corner2()});
+            BoundaryBoxClientData.boxes.put(payload.bench(), new BoundaryBoxClientData.BoxData(payload.corner1(), payload.corner2(), payload.color()));
         });
 
         ClientPlayNetworking.registerGlobalReceiver(RemoveBoundaryBoxPacket.ID, (payload, context) -> {

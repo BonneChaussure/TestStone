@@ -10,9 +10,6 @@ import org.joml.Matrix4f;
 
 public class BoundaryBoxRenderer {
 
-    // Color of the box
-    private final static float r = 1f, g = 0f, b = 0f, a = 1f;
-
     public static void render(WorldRenderContext ctx) {
         if (BoundaryBoxClientData.boxes.isEmpty()) return;
 
@@ -30,9 +27,14 @@ public class BoundaryBoxRenderer {
         Matrix4f mat = matrices.peek().getPositionMatrix();
 
         // Itère sur toutes les boxes
-        for (BlockPos[] corners : BoundaryBoxClientData.boxes.values()) {
-            BlockPos c1 = corners[0];
-            BlockPos c2 = corners[1];
+        for (BoundaryBoxClientData.BoxData box : BoundaryBoxClientData.boxes.values()) {
+            // Extraire r,g,b depuis le int color
+            float r = ((box.color() >> 16) & 0xFF) / 255f;
+            float g = ((box.color() >> 8)  & 0xFF) / 255f;
+            float b = ( box.color()        & 0xFF) / 255f;
+
+            BlockPos c1 = box.corner1();
+            BlockPos c2 = box.corner2();
 
             float x1 = Math.min(c1.getX(), c2.getX());
             float y1 = Math.min(c1.getY(), c2.getY());
@@ -41,7 +43,7 @@ public class BoundaryBoxRenderer {
             float y2 = Math.max(c1.getY(), c2.getY()) + 1f;
             float z2 = Math.max(c1.getZ(), c2.getZ()) + 1f;
 
-            drawCubeFaces(vc, mat, x1,y1,z1, x2,y2,z2, r, g, b, a);
+            drawCubeFaces(vc, mat, x1,y1,z1, x2,y2,z2, r,g,b, 1f);
         }
 
         consumers.draw(RenderLayer.getLines());
