@@ -1,16 +1,24 @@
 package org.BonneChaussure.blocks;
 
+import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryWrapper;
+import net.minecraft.screen.NamedScreenHandlerFactory;
+import net.minecraft.screen.ScreenHandler;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import org.BonneChaussure.gui.TestBenchScreenHandler;
 
-public class TestBenchBlockEntity extends BlockEntity {
+public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenHandlerFactory<TestBenchScreenHandler.SyncData> {
 
     private int color = 0xFF0000; // rouge par défaut
 
@@ -58,6 +66,21 @@ public class TestBenchBlockEntity extends BlockEntity {
     public int getSizeX() { return sizeX; }
     public int getSizeY() { return sizeY; }
     public int getSizeZ() { return sizeZ; }
+
+    @Override
+    public Text getDisplayName() {
+        return Text.translatable("block.teststone.test_bench");
+    }
+
+    @Override
+    public ScreenHandler createMenu(int syncId, PlayerInventory inv, PlayerEntity player) {
+        return new TestBenchScreenHandler(syncId, inv, pos, sizeX, sizeY, sizeZ, color);
+    }
+
+    @Override
+    public TestBenchScreenHandler.SyncData getScreenOpeningData(ServerPlayerEntity player) {
+        return new TestBenchScreenHandler.SyncData(pos, sizeX, sizeY, sizeZ, color);
+    }
 
     // ── Sérialisation NBT ──────────────────────────────────────────────────────
 

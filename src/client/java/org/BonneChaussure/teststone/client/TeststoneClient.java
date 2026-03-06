@@ -3,9 +3,12 @@ package org.BonneChaussure.teststone.client;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.util.math.BlockPos;
+import org.BonneChaussure.gui.TestBenchScreenHandler;
 import org.BonneChaussure.network.RemoveBoundaryBoxPacket;
 import org.BonneChaussure.network.SetBoundaryBoxPacket;
+import org.BonneChaussure.teststone.gui.TestBenchScreen;
 import org.BonneChaussure.teststone.renderer.BoundaryBoxClientData;
 import org.BonneChaussure.teststone.renderer.BoundaryBoxRenderer;
 
@@ -22,5 +25,7 @@ public class TeststoneClient implements ClientModInitializer {
         });
 
         WorldRenderEvents.AFTER_TRANSLUCENT.register(BoundaryBoxRenderer::render);
+
+        HandledScreens.register(TestBenchScreenHandler.TYPE, TestBenchScreen::new);
     }
 }
