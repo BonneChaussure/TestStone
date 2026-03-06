@@ -12,20 +12,23 @@ import net.minecraft.util.math.BlockPos;
 
 public class TestBenchBlockEntity extends BlockEntity {
 
+    private int color = 0xFF0000; // rouge par défaut
+
+    public static final int DEFAULT_SIZE = 5;
+
+    private int sizeX = DEFAULT_SIZE;
+    private int sizeY = DEFAULT_SIZE;
+    private int sizeZ = DEFAULT_SIZE;
+
+    // Coins stockés en NBT — null tant que le bloc n'est pas posé
+    private BlockPos corner1 = null;
+    private BlockPos corner2 = null;
+
     public static final BlockEntityType<TestBenchBlockEntity> TYPE = Registry.register(
             Registries.BLOCK_ENTITY_TYPE,
             Identifier.of("teststone", "test_bench"),
             BlockEntityType.Builder.create(TestBenchBlockEntity::new, ModBlocks.TEST_BENCH).build()
     );
-
-    // Rayon de la BoundaryBox autour du TestBench
-    public static final int RADIUS = 5;
-
-    private int color = 0xFF0000; // rouge par défaut
-
-    // Coins stockés en NBT — null tant que le bloc n'est pas posé
-    private BlockPos corner1 = null;
-    private BlockPos corner2 = null;
 
     public TestBenchBlockEntity(BlockPos pos, BlockState state) {
         super(TYPE, pos, state);
@@ -36,20 +39,36 @@ public class TestBenchBlockEntity extends BlockEntity {
 
     // Calcule et stocke les coins au moment de la pose
     public void initBoundaryBox() {
-        corner1 = pos.add(1,1,1);
-        corner2 = pos.add( RADIUS,  RADIUS,  RADIUS);
-        markDirty(); // signale à Minecraft que le NBT doit être sauvegardé
+        corner1 = pos.add(1, 1, 1);
+        corner2 = pos.add( sizeX,  sizeY,  sizeZ);
+        markDirty();
+    }
+
+    public void setBoundaryBoxSize(int x, int y, int z) {
+        this.sizeX = x;
+        this.sizeY = y;
+        this.sizeZ = z;
+        initBoundaryBox();
     }
 
     public BlockPos getCorner1() { return corner1; }
     public BlockPos getCorner2() { return corner2; }
     public boolean hasBoundaryBox() { return corner1 != null && corner2 != null; }
 
+    public int getSizeX() { return sizeX; }
+    public int getSizeY() { return sizeY; }
+    public int getSizeZ() { return sizeZ; }
+
     // ── Sérialisation NBT ──────────────────────────────────────────────────────
 
     @Override
     protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
         super.writeNbt(nbt, registries);
+
+        nbt.putInt("sizeX", sizeX);
+        nbt.putInt("sizeY", sizeY);
+        nbt.putInt("sizeZ", sizeZ);
+
         if (corner1 != null) {
             nbt.putLong("corner1", corner1.asLong());
             nbt.putLong("corner2", corner2.asLong());
@@ -61,6 +80,11 @@ public class TestBenchBlockEntity extends BlockEntity {
     @Override
     protected void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
         super.readNbt(nbt, registries);
+
+        if (nbt.contains("sizeX")) sizeX = nbt.getInt("sizeX");
+        if (nbt.contains("sizeY")) sizeY = nbt.getInt("sizeY");
+        if (nbt.contains("sizeZ")) sizeZ = nbt.getInt("sizeZ");
+
         if (nbt.contains("corner1")) {
             corner1 = BlockPos.fromLong(nbt.getLong("corner1"));
             corner2 = BlockPos.fromLong(nbt.getLong("corner2"));
