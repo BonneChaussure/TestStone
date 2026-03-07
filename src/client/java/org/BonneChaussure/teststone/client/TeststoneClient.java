@@ -6,24 +6,30 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
+import org.BonneChaussure.gui.RenameBlockScreenHandler;
 import org.BonneChaussure.gui.TestBenchScreenHandler;
 import org.BonneChaussure.gui.TestCaseScreenHandler;
 import org.BonneChaussure.network.RemoveBoundaryBoxPacket;
 import org.BonneChaussure.network.SetBoundaryBoxPacket;
 import org.BonneChaussure.network.SyncScannedBlocksPacket;
 import org.BonneChaussure.network.SyncTestResultPacket;
+import org.BonneChaussure.teststone.gui.RenameBlockScreen;
 import org.BonneChaussure.teststone.gui.TestBenchScreen;
 import org.BonneChaussure.teststone.gui.TestCaseScreen;
 import org.BonneChaussure.teststone.renderer.BoundaryBoxClientData;
 import org.BonneChaussure.teststone.renderer.BoundaryBoxRenderer;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class TeststoneClient implements ClientModInitializer {
     // Stockage temporaire des résultats du scan
     public static List<BlockPos> lastScannedInjectors = new ArrayList<>();
     public static List<BlockPos> lastScannedSensors   = new ArrayList<>();
+    public static Map<BlockPos, String> lastInjectorNames = new LinkedHashMap<>();
+    public static Map<BlockPos, String> lastSensorNames   = new LinkedHashMap<>();
     public static BlockPos lastScannedBench     = null;
 
     @Override
@@ -44,6 +50,7 @@ public class TeststoneClient implements ClientModInitializer {
 
         HandledScreens.register(TestBenchScreenHandler.TYPE, TestBenchScreen::new);
         HandledScreens.register(TestCaseScreenHandler.TYPE, TestCaseScreen::new);
+        HandledScreens.register(RenameBlockScreenHandler.TYPE, RenameBlockScreen::new);
 
         // Réception du scan → ouvre le 2e GUI si l'écran TestBench est ouvert
         ClientPlayNetworking.registerGlobalReceiver(SyncScannedBlocksPacket.ID, (payload, context) -> {
@@ -51,10 +58,14 @@ public class TeststoneClient implements ClientModInitializer {
                 lastScannedBench     = payload.bench();
                 lastScannedInjectors = payload.injectors();
                 lastScannedSensors   = payload.sensors();
+                lastInjectorNames    = new LinkedHashMap<>(payload.injectorNames());
+                lastSensorNames      = new LinkedHashMap<>(payload.sensorNames());
 
-                // Actualise le screen si c'est un TestCaseScreen ouvert
                 if (context.client().currentScreen instanceof TestCaseScreen screen) {
-                    screen.onScanReceived(payload.injectors(), payload.sensors());
+                    screen.onScanReceived(
+                            payload.injectors(), payload.injectorNames(),
+                            payload.sensors(),   payload.sensorNames()
+                    );
                 }
             });
         });

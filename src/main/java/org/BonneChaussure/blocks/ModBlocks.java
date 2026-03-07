@@ -9,6 +9,7 @@ import net.minecraft.item.ItemGroups;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
+import org.BonneChaussure.gui.RenameBlockScreenHandler;
 import org.BonneChaussure.gui.TestBenchScreenHandler;
 import org.BonneChaussure.gui.TestCaseScreenHandler;
 
@@ -36,5 +37,8 @@ public class ModBlocks {
         var _be = TestBenchBlockEntity.TYPE;
         var _sh = TestBenchScreenHandler.TYPE;
         var _tc = TestCaseScreenHandler.TYPE;
+        var _inj = InjectorBlockEntity.TYPE;
+        var _sen = SensorBlockEntity.TYPE;
+        var _rb  = RenameBlockScreenHandler.TYPE;
     }
 }

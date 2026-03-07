@@ -13,6 +13,7 @@ import org.BonneChaussure.network.RunTestsPacket;
 import org.BonneChaussure.network.SaveTestCasesPacket;
 import org.BonneChaussure.network.ScanBenchPacket;
 import org.BonneChaussure.tests.TestCase;
+import org.BonneChaussure.teststone.client.TeststoneClient;
 
 import java.util.*;
 
@@ -20,6 +21,8 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
 
     private final List<BlockPos> injectors = new ArrayList<>();
     private final List<BlockPos> sensors   = new ArrayList<>();
+    private final Map<BlockPos, String> injectorNames = new LinkedHashMap<>();
+    private final Map<BlockPos, String> sensorNames   = new LinkedHashMap<>();
 
     private final List<TestCase> editableCases;
     private final Boolean[] caseResults;
@@ -32,6 +35,8 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         this.backgroundHeight = 220;
         this.injectors.addAll(handler.injectors);
         this.sensors.addAll(handler.sensors);
+        this.injectorNames.putAll(TeststoneClient.lastInjectorNames);
+        this.sensorNames.putAll(TeststoneClient.lastSensorNames);
         this.editableCases = new ArrayList<>(handler.cases);
         if (editableCases.isEmpty()) addNewCase();
         this.caseResults = new Boolean[editableCases.size()];
@@ -198,16 +203,17 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
             final int fi = i;
             boolean val = current.injectorValues().getOrDefault(p, false);
 
+            String injDisplay = injectorNames.getOrDefault(p, "");
+            if (injDisplay.isEmpty()) injDisplay = "Inj " + label;
+            String injButtonLabel = injDisplay + " : " + (val ? "ON" : "OFF");
+
             // Bouton ON/OFF
             addDrawableChild(ButtonWidget.builder(
-                    Text.literal("Inj " + label + " : " + (val ? "ON" : "OFF")),
-                    b -> {
-                        TestCase cur = editableCases.get(caseIdx);
+                    Text.literal(injButtonLabel), b -> { TestCase cur = editableCases.get(caseIdx);
                         Map<BlockPos, Boolean> newInj = new LinkedHashMap<>(cur.injectorValues());
                         newInj.put(p, !newInj.getOrDefault(p, false));
                         editableCases.set(caseIdx, new TestCase(caseNameField.getText(), newInj, cur.sensorExpected()));
-                        rebuildWidgets();
-                    }
+                        rebuildWidgets(); }
             ).dimensions(x + 130, y + 32 + i * 20, 70, 16).build());
 
             // ▲ ▼ ✕
@@ -227,17 +233,20 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
             final int fi = i;
             boolean val = current.sensorExpected().getOrDefault(p, false);
 
+            String senDisplay = sensorNames.getOrDefault(p, "");
+            if (senDisplay.isEmpty()) senDisplay = "Sen " + label;
+            String senButtonLabel = senDisplay + " : " + (val ? "ON" : "OFF");
+
+            // Bouton ON/OFF
             addDrawableChild(ButtonWidget.builder(
-                    Text.literal("Sen " + label + " : " + (val ? "ON" : "OFF")),
-                    b -> {
-                        TestCase cur = editableCases.get(caseIdx);
+                    Text.literal(senButtonLabel), b -> { TestCase cur = editableCases.get(caseIdx);
                         Map<BlockPos, Boolean> newSen = new LinkedHashMap<>(cur.sensorExpected());
                         newSen.put(p, !newSen.getOrDefault(p, false));
                         editableCases.set(caseIdx, new TestCase(caseNameField.getText(), cur.injectorValues(), newSen));
-                        rebuildWidgets();
-                    }
+                        rebuildWidgets(); }
             ).dimensions(x + 255, y + 32 + i * 20, 70, 16).build());
 
+            // ▲ ▼ ✕
             addDrawableChild(ButtonWidget.builder(Text.literal("▲"), b -> moveSensorUp(fi))
                     .dimensions(x + 327, y + 32 + i * 20, 14, 16).build());
             addDrawableChild(ButtonWidget.builder(Text.literal("▼"), b -> moveSensorDown(fi))
@@ -262,7 +271,8 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
 
     private void save() {
         commitCurrentName();
-        ClientPlayNetworking.send(new SaveTestCasesPacket(handler.bench, editableCases));
+        ClientPlayNetworking.send(new SaveTestCasesPacket(
+                handler.bench, editableCases, injectors, sensors));
         close();
     }
 
@@ -272,15 +282,20 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
 
     private void runTests() {
         commitCurrentName();
-        ClientPlayNetworking.send(new SaveTestCasesPacket(handler.bench, editableCases));
+        ClientPlayNetworking.send(new SaveTestCasesPacket(
+                handler.bench, editableCases, injectors, sensors));
         ClientPlayNetworking.send(new RunTestsPacket(handler.bench));
         Arrays.fill(caseResults, null);
         rebuildWidgets();
     }
 
-    public void onScanReceived(List<BlockPos> newInjectors, List<BlockPos> newSensors) {
-        injectors.clear(); injectors.addAll(newInjectors);
-        sensors.clear();   sensors.addAll(newSensors);
+    public void onScanReceived(List<BlockPos> newInjectors, Map<BlockPos, String> newInjectorNames,
+                               List<BlockPos> newSensors,   Map<BlockPos, String> newSensorNames) {
+        injectors.clear();     injectors.addAll(newInjectors);
+        sensors.clear();       sensors.addAll(newSensors);
+        injectorNames.clear(); injectorNames.putAll(newInjectorNames);
+        sensorNames.clear();   sensorNames.putAll(newSensorNames);
+
         for (int i = 0; i < editableCases.size(); i++) {
             TestCase tc = editableCases.get(i);
             Map<BlockPos, Boolean> newInj = new LinkedHashMap<>();

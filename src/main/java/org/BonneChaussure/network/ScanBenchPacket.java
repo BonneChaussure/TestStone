@@ -8,11 +8,15 @@ import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import org.BonneChaussure.blocks.InjectorBlockEntity;
 import org.BonneChaussure.blocks.ModBlocks;
+import org.BonneChaussure.blocks.SensorBlockEntity;
 import org.BonneChaussure.blocks.TestBenchBlockEntity;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public record ScanBenchPacket(BlockPos bench) implements CustomPayload {
 
@@ -53,12 +57,24 @@ public record ScanBenchPacket(BlockPos bench) implements CustomPayload {
                             if (world.getBlockState(p).isOf(ModBlocks.INJECTOR)) injectors.add(p);
                             else if (world.getBlockState(p).isOf(ModBlocks.SENSOR))   sensors.add(p);
                         }
+                Map<BlockPos, String> injNames = new LinkedHashMap<>();
+                for (BlockPos p : injectors) {
+                    String name = (world.getBlockEntity(p) instanceof InjectorBlockEntity be2)
+                            ? be2.getCustomName() : "";
+                    injNames.put(p, name);
+                }
+                Map<BlockPos, String> senNames = new LinkedHashMap<>();
+                for (BlockPos p : sensors) {
+                    String name = (world.getBlockEntity(p) instanceof SensorBlockEntity be2)
+                            ? be2.getCustomName() : "";
+                    senNames.put(p, name);
+                }
 
                 be.setScannedBlocks(injectors, sensors);
 
                 // Renvoie les résultats au client
                 ServerPlayNetworking.send(context.player(),
-                        new SyncScannedBlocksPacket(payload.bench(), injectors, sensors));
+                        new SyncScannedBlocksPacket(payload.bench(), injectors, injNames, sensors, senNames));
             });
         });
     }

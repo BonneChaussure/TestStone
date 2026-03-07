@@ -116,6 +116,26 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         );
     }
 
+    public void setScannedBlockOrder(List<BlockPos> injectorOrder, List<BlockPos> sensorOrder) {
+        // Réordonne en respectant l'ordre reçu, ignore les pos inconnues
+        List<BlockPos> newInj = new ArrayList<>();
+        for (BlockPos p : injectorOrder)
+            if (scannedInjectors.contains(p)) newInj.add(p);
+        // Ajoute les éventuels oubliés (sécurité)
+        for (BlockPos p : scannedInjectors)
+            if (!newInj.contains(p)) newInj.add(p);
+        scannedInjectors = newInj;
+
+        List<BlockPos> newSen = new ArrayList<>();
+        for (BlockPos p : sensorOrder)
+            if (scannedSensors.contains(p)) newSen.add(p);
+        for (BlockPos p : scannedSensors)
+            if (!newSen.contains(p)) newSen.add(p);
+        scannedSensors = newSen;
+
+        markDirty();
+    }
+
     // ── Méthode tick — appelée par le Block ticker ────────────────────────────
     public void tick(ServerWorld serverWorld) {
         if (executor == null) return;
