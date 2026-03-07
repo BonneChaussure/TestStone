@@ -7,6 +7,7 @@ import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryWrapper;
@@ -16,6 +17,10 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import org.BonneChaussure.gui.TestBenchScreenHandler;
+import org.BonneChaussure.tests.TestCase;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenHandlerFactory<TestBenchScreenHandler.SyncData> {
 
@@ -30,6 +35,10 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     // Coins stockés en NBT — null tant que le bloc n'est pas posé
     private BlockPos corner1 = null;
     private BlockPos corner2 = null;
+
+    private List<BlockPos> scannedInjectors = new ArrayList<>();
+    private List<BlockPos> scannedSensors   = new ArrayList<>();
+    private List<TestCase> testCases        = new ArrayList<>();
 
     public static final BlockEntityType<TestBenchBlockEntity> TYPE = Registry.register(
             Registries.BLOCK_ENTITY_TYPE,
@@ -66,6 +75,21 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     public int getSizeY() { return sizeY; }
     public int getSizeZ() { return sizeZ; }
 
+    public List<BlockPos> getScannedInjectors() { return scannedInjectors; }
+    public List<BlockPos> getScannedSensors()   { return scannedSensors; }
+    public List<TestCase> getTestCases()        { return testCases; }
+
+    public void setScannedBlocks(List<BlockPos> injectors, List<BlockPos> sensors) {
+        this.scannedInjectors = injectors;
+        this.scannedSensors   = sensors;
+        markDirty();
+    }
+
+    public void setTestCases(List<TestCase> cases) {
+        this.testCases = cases;
+        markDirty();
+    }
+
     @Override
     public Text getDisplayName() {
         return Text.translatable("block.teststone.test_bench");
@@ -78,7 +102,10 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
 
     @Override
     public TestBenchScreenHandler.SyncData getScreenOpeningData(ServerPlayerEntity player) {
-        return new TestBenchScreenHandler.SyncData(pos, sizeX, sizeY, sizeZ, color);
+        return new TestBenchScreenHandler.SyncData(
+                pos, sizeX, sizeY, sizeZ, color,
+                scannedInjectors, scannedSensors, testCases
+        );
     }
 
     // ── Sérialisation NBT ──────────────────────────────────────────────────────
@@ -97,6 +124,19 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         }
 
         nbt.putInt("color", color);
+
+        NbtList injList = new NbtList();
+        scannedInjectors.forEach(p -> { NbtCompound e = new NbtCompound(); e.putLong("p", p.asLong()); injList.add(e); });
+        nbt.put("scannedInjectors", injList);
+
+        NbtList senList = new NbtList();
+        scannedSensors.forEach(p -> { NbtCompound e = new NbtCompound(); e.putLong("p", p.asLong()); senList.add(e); });
+        nbt.put("scannedSensors", senList);
+
+        NbtList caseList = new NbtList();
+        testCases.forEach(tc -> caseList.add(tc.toNbt()));
+        nbt.put("testCases", caseList);
+
     }
 
     @Override
@@ -113,5 +153,17 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         }
 
         if (nbt.contains("color")) color = nbt.getInt("color");
+
+        NbtList injNbt = nbt.getList("scannedInjectors", 10);
+        scannedInjectors = new ArrayList<>();
+        for (int i = 0; i < injNbt.size(); i++) scannedInjectors.add(BlockPos.fromLong(injNbt.getCompound(i).getLong("p")));
+
+        NbtList senNbt = nbt.getList("scannedSensors", 10);
+        scannedSensors = new ArrayList<>();
+        for (int i = 0; i < senNbt.size(); i++) scannedSensors.add(BlockPos.fromLong(senNbt.getCompound(i).getLong("p")));
+
+        NbtList caseNbt = nbt.getList("testCases", 10);
+        testCases = new ArrayList<>();
+        for (int i = 0; i < caseNbt.size(); i++) testCases.add(TestCase.fromNbt(caseNbt.getCompound(i)));
     }
 }

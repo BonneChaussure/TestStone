@@ -7,8 +7,14 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.BlockPos;
 import org.BonneChaussure.gui.TestBenchScreenHandler;
+import org.BonneChaussure.gui.TestCaseScreenHandler;
+import org.BonneChaussure.network.ScanBenchPacket;
 import org.BonneChaussure.network.UpdateBenchPacket;
+import org.BonneChaussure.teststone.client.TeststoneClient;
+
+import java.util.List;
 
 public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
 
@@ -46,7 +52,11 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
 
         // Bouton Sauvegarder
         addDrawableChild(ButtonWidget.builder(Text.literal("Save"), btn -> save())
-                .dimensions(x + 55, y + 118, 90, 20)
+                .dimensions(x + 75, y + 118, 90, 20)
+                .build());
+
+        addDrawableChild(ButtonWidget.builder(Text.literal("Cas de test →"), btn -> openTestCases())
+                .dimensions(x + 150, y + 118, 80, 20)
                 .build());
     }
 
@@ -86,6 +96,26 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
     private boolean isValidColor(String s) {
         try { Integer.parseInt(s.trim(), 16); return true; }
         catch (Exception e) { return false; }
+    }
+
+    private void openTestCases() {
+        // Priorité aux données déjà scannées du BE (via SyncData)
+        // Fallback sur le dernier scan en mémoire si le BE n'en a pas
+        List<BlockPos> inj = !handler.injectors.isEmpty()
+                ? handler.injectors
+                : TeststoneClient.lastScannedInjectors;
+        List<BlockPos> sen = !handler.sensors.isEmpty()
+                ? handler.sensors
+                : TeststoneClient.lastScannedSensors;
+
+        var h = new TestCaseScreenHandler(0, client.player.getInventory(),
+                new TestCaseScreenHandler.SyncData(
+                        handler.benchPos,
+                        inj,
+                        sen,
+                        handler.testCases
+                ));
+        client.setScreen(new TestCaseScreen(h, client.player.getInventory(), Text.literal("Cas de test")));
     }
 
     @Override

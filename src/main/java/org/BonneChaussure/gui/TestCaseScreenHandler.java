@@ -18,29 +18,21 @@ import org.BonneChaussure.tests.TestCase;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TestBenchScreenHandler extends ScreenHandler {
+public class TestCaseScreenHandler extends ScreenHandler {
 
-    // Record qui transite du serveur → client à l'ouverture
-    public record SyncData(BlockPos pos, int sizeX, int sizeY, int sizeZ, int color,
-                           List<BlockPos> injectors, List<BlockPos> sensors,
-                           List<TestCase> testCases) {
-
+    public record SyncData(BlockPos bench, List<BlockPos> injectors, List<BlockPos> sensors, List<TestCase> cases) {
         public static final PacketCodec<RegistryByteBuf, SyncData> CODEC = PacketCodec.of(
                 (data, buf) -> {
-                    buf.writeBlockPos(data.pos());
-                    buf.writeInt(data.sizeX()); buf.writeInt(data.sizeY()); buf.writeInt(data.sizeZ());
-                    buf.writeInt(data.color());
+                    buf.writeBlockPos(data.bench());
                     buf.writeInt(data.injectors().size());
                     data.injectors().forEach(buf::writeBlockPos);
                     buf.writeInt(data.sensors().size());
                     data.sensors().forEach(buf::writeBlockPos);
-                    buf.writeInt(data.testCases().size());
-                    data.testCases().forEach(tc -> buf.writeNbt(tc.toNbt()));
+                    buf.writeInt(data.cases().size());
+                    data.cases().forEach(tc -> buf.writeNbt(tc.toNbt()));
                 },
                 buf -> {
-                    BlockPos pos = buf.readBlockPos();
-                    int sx = buf.readInt(), sy = buf.readInt(), sz = buf.readInt();
-                    int color = buf.readInt();
+                    BlockPos bench = buf.readBlockPos();
                     int injCount = buf.readInt();
                     List<BlockPos> inj = new ArrayList<>();
                     for (int i = 0; i < injCount; i++) inj.add(buf.readBlockPos());
@@ -50,43 +42,28 @@ public class TestBenchScreenHandler extends ScreenHandler {
                     int caseCount = buf.readInt();
                     List<TestCase> cases = new ArrayList<>();
                     for (int i = 0; i < caseCount; i++) cases.add(TestCase.fromNbt((NbtCompound) buf.readNbt()));
-                    return new SyncData(pos, sx, sy, sz, color, inj, sen, cases);
+                    return new SyncData(bench, inj, sen, cases);
                 }
         );
     }
 
-    public static final ScreenHandlerType<TestBenchScreenHandler> TYPE = Registry.register(
+    public static final ScreenHandlerType<TestCaseScreenHandler> TYPE = Registry.register(
             Registries.SCREEN_HANDLER,
-            Identifier.of("teststone", "test_bench"),
-            new ExtendedScreenHandlerType<>(TestBenchScreenHandler::new, SyncData.CODEC)
+            Identifier.of("teststone", "test_case"),
+            new ExtendedScreenHandlerType<>(TestCaseScreenHandler::new, SyncData.CODEC)
     );
 
-    public final BlockPos benchPos;
-    public final int sizeX, sizeY, sizeZ, color;
-    public List<TestCase> testCases;
-    public List<BlockPos> injectors;
-    public List<BlockPos> sensors;
+    public final BlockPos bench;
+    public final List<BlockPos> injectors;
+    public final List<BlockPos> sensors;
+    public final List<TestCase> cases;
 
-    // Constructeur serveur
-    public TestBenchScreenHandler(int syncId, PlayerInventory inv, BlockPos pos,
-                                  int sizeX, int sizeY, int sizeZ, int color) {
+    public TestCaseScreenHandler(int syncId, PlayerInventory inv, SyncData data) {
         super(TYPE, syncId);
-        this.benchPos = pos;
-        this.sizeX = sizeX; this.sizeY = sizeY; this.sizeZ = sizeZ;
-        this.color = color;
-    }
-
-    // Constructeur client — reçoit les vraies données du BE via SyncData
-    public TestBenchScreenHandler(int syncId, PlayerInventory inv, SyncData data) {
-        super(TYPE, syncId);
-        this.benchPos  = data.pos();
-        this.sizeX     = data.sizeX();
-        this.sizeY     = data.sizeY();
-        this.sizeZ     = data.sizeZ();
-        this.color     = data.color();
+        this.bench     = data.bench();
         this.injectors = data.injectors();
         this.sensors   = data.sensors();
-        this.testCases = data.testCases();
+        this.cases     = new ArrayList<>(data.cases());
     }
 
     @Override
