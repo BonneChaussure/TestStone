@@ -11,6 +11,7 @@ import org.BonneChaussure.gui.TestCaseScreenHandler;
 import org.BonneChaussure.network.RemoveBoundaryBoxPacket;
 import org.BonneChaussure.network.SetBoundaryBoxPacket;
 import org.BonneChaussure.network.SyncScannedBlocksPacket;
+import org.BonneChaussure.network.SyncTestResultPacket;
 import org.BonneChaussure.teststone.gui.TestBenchScreen;
 import org.BonneChaussure.teststone.gui.TestCaseScreen;
 import org.BonneChaussure.teststone.renderer.BoundaryBoxClientData;
@@ -54,6 +55,18 @@ public class TeststoneClient implements ClientModInitializer {
                 // Actualise le screen si c'est un TestCaseScreen ouvert
                 if (context.client().currentScreen instanceof TestCaseScreen screen) {
                     screen.onScanReceived(payload.injectors(), payload.sensors());
+                }
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(SyncTestResultPacket.ID, (payload, ctx) -> {
+            ctx.client().execute(() -> {
+                if (ctx.client().currentScreen instanceof TestCaseScreen screen) {
+                    if (payload.caseIdx() >= 0) {
+                        screen.onCaseResult(payload.caseIdx(), payload.pass());
+                    } else {
+                        screen.onAllResults(payload.allResults());
+                    }
                 }
             });
         });

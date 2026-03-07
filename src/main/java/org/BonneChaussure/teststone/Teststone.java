@@ -17,6 +17,7 @@ public class Teststone implements ModInitializer {
         ScanBenchPacket.register();
         SyncScannedBlocksPacket.register();
         SaveTestCasesPacket.register();
-        // Plus de var oui ici
+        RunTestsPacket.register();
+        SyncTestResultPacket.register();
     }
 }

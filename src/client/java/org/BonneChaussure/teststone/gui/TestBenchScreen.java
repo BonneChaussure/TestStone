@@ -108,6 +108,8 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
                 ? handler.sensors
                 : TeststoneClient.lastScannedSensors;
 
+        assert client != null;
+        assert client.player != null;
         var h = new TestCaseScreenHandler(0, client.player.getInventory(),
                 new TestCaseScreenHandler.SyncData(
                         handler.benchPos,

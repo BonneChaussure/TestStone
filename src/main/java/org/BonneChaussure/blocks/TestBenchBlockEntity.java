@@ -13,11 +13,14 @@ import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 import org.BonneChaussure.gui.TestBenchScreenHandler;
 import org.BonneChaussure.tests.TestCase;
+import org.BonneChaussure.tests.TestExecutor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +42,11 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     private List<BlockPos> scannedInjectors = new ArrayList<>();
     private List<BlockPos> scannedSensors   = new ArrayList<>();
     private List<TestCase> testCases        = new ArrayList<>();
+
+    public enum TestState { IDLE, RUNNING, DONE }
+    private TestState testState = TestState.IDLE;
+    private Boolean[] lastResults = null;
+    private TestExecutor executor = null;
 
     public static final BlockEntityType<TestBenchBlockEntity> TYPE = Registry.register(
             Registries.BLOCK_ENTITY_TYPE,
@@ -107,6 +115,40 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
                 scannedInjectors, scannedSensors, testCases
         );
     }
+
+    // ── Méthode tick — appelée par le Block ticker ────────────────────────────
+    public void tick(ServerWorld serverWorld) {
+        if (executor == null) return;
+        boolean ongoing = executor.tick();
+        if (!ongoing) {
+            executor = null;
+        }
+    }
+
+    // ── Lance l'exécution ─────────────────────────────────────────────────────
+    public void startTests(ServerWorld serverWorld) {
+        if (testCases.isEmpty()) return;
+        testState = TestState.RUNNING;
+        executor = new TestExecutor(this, serverWorld, testCases);
+        markDirty();
+    }
+
+    // ── Callback appelé par TestExecutor après chaque cas ─────────────────────
+    public void onCaseResult(int caseIdx, boolean pass) {
+        TestBenchBlock.sendCaseResult((ServerWorld) world, this, caseIdx, pass);
+    }
+
+    // ── Callback appelé par TestExecutor en fin de session ────────────────────
+    public void onTestsDone(Boolean[] results) {
+        this.lastResults = results;
+        this.testState = TestState.DONE;
+        this.executor = null;
+        markDirty();
+        TestBenchBlock.sendAllResults((ServerWorld) world, this, results);
+    }
+
+    public TestState getTestState()   { return testState; }
+    public Boolean[] getLastResults() { return lastResults; }
 
     // ── Sérialisation NBT ──────────────────────────────────────────────────────
 
