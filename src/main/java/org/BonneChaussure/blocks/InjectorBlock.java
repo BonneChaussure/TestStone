@@ -60,10 +60,13 @@ public class InjectorBlock extends Block implements BlockEntityProvider {
     @Override
     public void onStateReplaced(BlockState state, World world, BlockPos pos,
                                 BlockState newState, boolean moved) {
-        if (!moved && state.get(POWERED) != newState.get(POWERED)) {
-            world.updateNeighborsAlways(pos, this);
-            for (Direction dir : Direction.values()) {
-                world.updateNeighborsAlways(pos.offset(dir), this);
+        if (!moved && !state.isOf(newState.getBlock())) {
+            // Ne notifie les voisins que si c'était alimenté — et seulement depuis l'ancien state
+            if (state.get(POWERED)) {
+                world.updateNeighborsAlways(pos, this);
+                for (Direction dir : Direction.values()) {
+                    world.updateNeighborsAlways(pos.offset(dir), this);
+                }
             }
         }
         super.onStateReplaced(state, world, pos, newState, moved);
@@ -78,6 +81,15 @@ public class InjectorBlock extends Block implements BlockEntityProvider {
         if (world.getBlockEntity(pos) instanceof InjectorBlockEntity be) {
             player.openHandledScreen(be);
         }
+
+        // Force la resynchronisation côté client pour éviter les ghost blocks
+        // quand le joueur avait un item en main au moment du clic droit
+        if (player instanceof net.minecraft.server.network.ServerPlayerEntity sp) {
+            sp.networkHandler.sendPacket(
+                    new net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket(world, pos)
+            );
+        }
+
         return ActionResult.SUCCESS;
     }
 }
