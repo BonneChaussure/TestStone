@@ -23,36 +23,68 @@ import java.util.*;
 
 public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
 
-    private final List<BlockPos> injectors = new ArrayList<>();
-    private final List<BlockPos> sensors   = new ArrayList<>();
-    private final Map<BlockPos, String> injectorNames = new LinkedHashMap<>();
-    private final Map<BlockPos, String> sensorNames   = new LinkedHashMap<>();
-
-    private final List<TestCase> editableCases;
-    // List<Boolean> au lieu de Boolean[] pour supporter l'ajout dynamique de cas
-    private final List<Boolean> caseResults = new ArrayList<>();
+    private final List<BlockPos>         injectors     = new ArrayList<>();
+    private final List<BlockPos>         sensors       = new ArrayList<>();
+    private final Map<BlockPos, String>  injectorNames = new LinkedHashMap<>();
+    private final Map<BlockPos, String>  sensorNames   = new LinkedHashMap<>();
+    private final List<TestCase>         editableCases;
+    private final List<Boolean>          caseResults   = new ArrayList<>();
     private int selectedCase = 0;
     private TextFieldWidget caseNameField;
 
+    private static final int ROW_H    = 18;
+    private static final int LIST_H   = 150;
+    private static final int BOX_Y_OFF = 22;
+    private static final int CX = 5,   CW = 128;
+    private static final int IX = 143, IW = 118;
+    private static final int SX = 271, SW = 118;
+    private static final int SCROLL_W = 6;
+
+    private int scrollCase = 0, scrollInj = 0, scrollSen = 0;
+
+    private enum DragTarget { NONE, CASE, INJ, SEN }
+    private DragTarget dragging       = DragTarget.NONE;
+    private int        dragStartMouseY;
+    private int        dragStartScroll;
+
     public TestCaseScreen(TestCaseScreenHandler handler, PlayerInventory inv, Text title) {
         super(handler, inv, title);
-        this.backgroundWidth  = 340;
-        this.backgroundHeight = 220;
-        this.injectors.addAll(handler.injectors);
-        this.sensors.addAll(handler.sensors);
-        // Noms depuis le handler (données persistées du BE) — plus fiable que TeststoneClient.last*
-        // qui est une variable globale du dernier scan, indépendante du bench
-        this.injectorNames.putAll(handler.injectorNames);
-        this.sensorNames.putAll(handler.sensorNames);
-        this.editableCases = new ArrayList<>(handler.cases);
+        this.backgroundWidth  = 400;
+        this.backgroundHeight = 200;
+        injectors.addAll(handler.injectors);
+        sensors.addAll(handler.sensors);
+        injectorNames.putAll(handler.injectorNames);
+        sensorNames.putAll(handler.sensorNames);
+        editableCases = new ArrayList<>(handler.cases);
         if (editableCases.isEmpty()) addNewCase();
-        // Restaure le cas sélectionné sauvegardé, clampé à la taille réelle
-        this.selectedCase = Math.min(handler.selectedCaseIndex, Math.max(0, editableCases.size() - 1));
-        // Initialise caseResults à la bonne taille (null = pas encore exécuté)
+        selectedCase = Math.min(handler.selectedCaseIndex, editableCases.size() - 1);
         for (int i = 0; i < editableCases.size(); i++) caseResults.add(null);
     }
 
-    // ── Cas de test ───────────────────────────────────────────────────────────
+    // ── Scroll helpers ────────────────────────────────────────────────────────
+
+    private int caseTotalH() { return (editableCases.size() + 1) * ROW_H; }
+    private int injTotalH()  { return Math.max(ROW_H, injectors.size() * ROW_H); }
+    private int senTotalH()  { return Math.max(ROW_H, sensors.size()   * ROW_H); }
+    private int maxScrollCase() { return Math.max(0, caseTotalH() - LIST_H); }
+    private int maxScrollInj()  { return Math.max(0, injTotalH()  - LIST_H); }
+    private int maxScrollSen()  { return Math.max(0, senTotalH()  - LIST_H); }
+
+    private void clampScrolls() {
+        scrollCase = Math.max(0, Math.min(scrollCase, maxScrollCase()));
+        scrollInj  = Math.max(0, Math.min(scrollInj,  maxScrollInj()));
+        scrollSen  = Math.max(0, Math.min(scrollSen,  maxScrollSen()));
+    }
+    private int thumbH(int maxScroll, int totalH) {
+        if (totalH <= 0 || maxScroll <= 0) return LIST_H;
+        return Math.max(16, LIST_H * LIST_H / totalH);
+    }
+    private int thumbY(int scrollVal, int maxScroll, int totalH) {
+        if (maxScroll <= 0) return 0;
+        return (int)((float) scrollVal / maxScroll * (LIST_H - thumbH(maxScroll, totalH)));
+    }
+
+    // ── Logique cas ───────────────────────────────────────────────────────────
 
     private void addNewCase() {
         Map<BlockPos, Boolean> inj = new LinkedHashMap<>();
@@ -60,361 +92,376 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         Map<BlockPos, Boolean> sen = new LinkedHashMap<>();
         sensors.forEach(p -> sen.put(p, false));
         editableCases.add(new TestCase("Cas " + (editableCases.size() + 1), inj, sen));
-        caseResults.add(null); // slot correspondant
+        caseResults.add(null);
     }
-
     private void commitCurrentName() {
         if (caseNameField == null || editableCases.isEmpty()) return;
         TestCase cur = editableCases.get(selectedCase);
         editableCases.set(selectedCase,
                 new TestCase(caseNameField.getText(), cur.injectorValues(), cur.sensorExpected()));
     }
-
     private void moveCaseUp(int idx) {
-        if (idx <= 0) return;
-        commitCurrentName();
-        Collections.swap(editableCases, idx, idx - 1);
-        Collections.swap(caseResults, idx, idx - 1);
-        if (selectedCase == idx) selectedCase--;
-        else if (selectedCase == idx - 1) selectedCase++;
-        rebuildWidgets();
+        if (idx <= 0) return; commitCurrentName();
+        Collections.swap(editableCases, idx, idx-1); Collections.swap(caseResults, idx, idx-1);
+        if (selectedCase==idx) selectedCase--; else if (selectedCase==idx-1) selectedCase++;
+        initWidgets();
     }
-
     private void moveCaseDown(int idx) {
-        if (idx >= editableCases.size() - 1) return;
-        commitCurrentName();
-        Collections.swap(editableCases, idx, idx + 1);
-        Collections.swap(caseResults, idx, idx + 1);
-        if (selectedCase == idx) selectedCase++;
-        else if (selectedCase == idx + 1) selectedCase--;
-        rebuildWidgets();
+        if (idx >= editableCases.size()-1) return; commitCurrentName();
+        Collections.swap(editableCases, idx, idx+1); Collections.swap(caseResults, idx, idx+1);
+        if (selectedCase==idx) selectedCase++; else if (selectedCase==idx+1) selectedCase--;
+        initWidgets();
     }
-
     private void deleteCase(int idx) {
-        commitCurrentName();
-        editableCases.remove(idx);
+        commitCurrentName(); editableCases.remove(idx);
         if (idx < caseResults.size()) caseResults.remove(idx);
         if (editableCases.isEmpty()) addNewCase();
-        if (selectedCase >= editableCases.size()) selectedCase = editableCases.size() - 1;
-        rebuildWidgets();
+        if (selectedCase >= editableCases.size()) selectedCase = editableCases.size()-1;
+        initWidgets();
     }
 
-    // ── Injectors / Sensors ───────────────────────────────────────────────────
+    // ── Logique injectors/sensors ─────────────────────────────────────────────
 
-    private void moveInjectorUp(int idx) {
-        if (idx <= 0) return;
-        Collections.swap(injectors, idx, idx - 1);
-        rebuildWidgets();
-    }
-
-    private void moveInjectorDown(int idx) {
-        if (idx >= injectors.size() - 1) return;
-        Collections.swap(injectors, idx, idx + 1);
-        rebuildWidgets();
-    }
-
+    private void moveInjectorUp(int idx)   { if (idx>0) { Collections.swap(injectors,idx,idx-1); initWidgets(); } }
+    private void moveInjectorDown(int idx) { if (idx<injectors.size()-1) { Collections.swap(injectors,idx,idx+1); initWidgets(); } }
     private void deleteInjector(int idx) {
         BlockPos removed = injectors.remove(idx);
-        for (int i = 0; i < editableCases.size(); i++) {
-            TestCase tc = editableCases.get(i);
-            Map<BlockPos, Boolean> newInj = new LinkedHashMap<>(tc.injectorValues());
-            newInj.remove(removed);
-            editableCases.set(i, new TestCase(tc.name(), newInj, tc.sensorExpected()));
-        }
-        rebuildWidgets();
+        for (int i=0;i<editableCases.size();i++) { TestCase tc=editableCases.get(i); Map<BlockPos,Boolean> m=new LinkedHashMap<>(tc.injectorValues()); m.remove(removed); editableCases.set(i,new TestCase(tc.name(),m,tc.sensorExpected())); }
+        initWidgets();
     }
-
-    private void moveSensorUp(int idx) {
-        if (idx <= 0) return;
-        Collections.swap(sensors, idx, idx - 1);
-        rebuildWidgets();
-    }
-
-    private void moveSensorDown(int idx) {
-        if (idx >= sensors.size() - 1) return;
-        Collections.swap(sensors, idx, idx + 1);
-        rebuildWidgets();
-    }
-
+    private void moveSensorUp(int idx)   { if (idx>0) { Collections.swap(sensors,idx,idx-1); initWidgets(); } }
+    private void moveSensorDown(int idx) { if (idx<sensors.size()-1) { Collections.swap(sensors,idx,idx+1); initWidgets(); } }
     private void deleteSensor(int idx) {
         BlockPos removed = sensors.remove(idx);
-        for (int i = 0; i < editableCases.size(); i++) {
-            TestCase tc = editableCases.get(i);
-            Map<BlockPos, Boolean> newSen = new LinkedHashMap<>(tc.sensorExpected());
-            newSen.remove(removed);
-            editableCases.set(i, new TestCase(tc.name(), tc.injectorValues(), newSen));
-        }
-        rebuildWidgets();
+        for (int i=0;i<editableCases.size();i++) { TestCase tc=editableCases.get(i); Map<BlockPos,Boolean> m=new LinkedHashMap<>(tc.sensorExpected()); m.remove(removed); editableCases.set(i,new TestCase(tc.name(),tc.injectorValues(),m)); }
+        initWidgets();
+    }
+    private void toggleInjector(int caseIdx, BlockPos p) {
+        commitCurrentName(); TestCase cur=editableCases.get(caseIdx);
+        Map<BlockPos,Boolean> m=new LinkedHashMap<>(cur.injectorValues()); m.put(p,!m.getOrDefault(p,false));
+        editableCases.set(caseIdx,new TestCase(cur.name(),m,cur.sensorExpected())); initWidgets();
+    }
+    private void toggleSensor(int caseIdx, BlockPos p) {
+        commitCurrentName(); TestCase cur=editableCases.get(caseIdx);
+        Map<BlockPos,Boolean> m=new LinkedHashMap<>(cur.sensorExpected()); m.put(p,!m.getOrDefault(p,false));
+        editableCases.set(caseIdx,new TestCase(cur.name(),cur.injectorValues(),m)); initWidgets();
     }
 
-    // ── Construction des widgets ──────────────────────────────────────────────
+    // ── Widgets fixes ─────────────────────────────────────────────────────────
 
     @Override
-    protected void init() {
-        super.init();
-        rebuildWidgets();
-    }
+    protected void init() { super.init(); initWidgets(); }
 
-    private void rebuildWidgets() {
-        clearChildren();
-
-        int x = (width  - backgroundWidth)  / 2;
-        int y = (height - backgroundHeight) / 2;
-
-        // ── Colonne gauche : liste des cas ────────────────────────────────────
-        for (int i = 0; i < editableCases.size(); i++) {
-            final int idx = i;
-
-            // Couleur selon résultat
-            int labelColor = (i >= caseResults.size() || caseResults.get(i) == null) ? 0x404040
-                    : caseResults.get(i) ? 0x00AA00 : 0xAA0000;
-
-            String label = (i == selectedCase ? "▶ " : "  ") + editableCases.get(i).name();
-            ButtonWidget btn = addDrawableChild(ButtonWidget.builder(Text.literal(label), b -> {
-                commitCurrentName();
-                selectedCase = idx;
-                rebuildWidgets();
-            }).dimensions(x + 5, y + 20 + i * 22, 70, 18).build());
-            btn.setMessage(Text.literal(label).styled(s -> s.withColor(labelColor)));
-
-            // ▲
-            addDrawableChild(ButtonWidget.builder(Text.literal("▲"), b -> moveCaseUp(idx))
-                    .dimensions(x + 77, y + 20 + i * 22, 14, 18).build());
-            // ▼
-            addDrawableChild(ButtonWidget.builder(Text.literal("▼"), b -> moveCaseDown(idx))
-                    .dimensions(x + 93, y + 20 + i * 22, 14, 18).build());
-            // ✕ rouge
-            ButtonWidget del = addDrawableChild(ButtonWidget.builder(Text.literal("✕"), b -> deleteCase(idx))
-                    .dimensions(x + 109, y + 20 + i * 22, 14, 18).build());
-            del.setMessage(Text.literal("✕").styled(s -> s.withColor(0xFF4444)));
-            // ▶ vert — lancer ce cas uniquement
-            ButtonWidget run = addDrawableChild(ButtonWidget.builder(Text.literal("▶"), b -> runSingleTest(idx))
-                    .dimensions(x + 125, y + 20 + i * 22, 14, 18).build());
-            run.setMessage(Text.literal("▶").styled(s -> s.withColor(0x55FF55)));
-        }
-
-        // Bouton + Ajouter
-        addDrawableChild(ButtonWidget.builder(Text.literal("+ Ajouter"), b -> {
-            commitCurrentName();
-            addNewCase();
-            selectedCase = editableCases.size() - 1;
-            rebuildWidgets();
-        }).dimensions(x + 5, y + 20 + editableCases.size() * 22, 80, 18).build());
-
-        // ── Colonne droite : édition du cas sélectionné ───────────────────────
+    private void initWidgets() {
+        clearChildren(); clampScrolls();
+        int gx=(width-backgroundWidth)/2, gy=(height-backgroundHeight)/2;
         if (editableCases.isEmpty()) return;
 
-        final int caseIdx = selectedCase;
-        TestCase current = editableCases.get(caseIdx);
-
-        // Nom du cas
+        // Champ nom
         caseNameField = addDrawableChild(new TextFieldWidget(
-                textRenderer, x + 130, y + 10, 120, 14, Text.literal("Nom")));
-        caseNameField.setText(current.name());
+                textRenderer, gx+IX, gy+5, 110, 14, Text.literal("Nom")));
+        caseNameField.setText(editableCases.get(selectedCase).name());
         caseNameField.setMaxLength(32);
 
-        // ── Injectors ─────────────────────────────────────────────────────────
-        for (int i = 0; i < injectors.size(); i++) {
-            final BlockPos p = injectors.get(i);
-            final int label = i + 1;
-            final int fi = i;
-            boolean val = current.injectorValues().getOrDefault(p, false);
-
-            String injDisplay = injectorNames.getOrDefault(p, "");
-            if (injDisplay.isEmpty()) injDisplay = "Inj " + label;
-            String injButtonLabel = injDisplay + " : " + (val ? "ON" : "OFF");
-
-            // Bouton ON/OFF
-            addDrawableChild(ButtonWidget.builder(
-                    Text.literal(injButtonLabel), b -> {
-                        TestCase cur = editableCases.get(caseIdx);
-                        Map<BlockPos, Boolean> newInj = new LinkedHashMap<>(cur.injectorValues());
-                        newInj.put(p, !newInj.getOrDefault(p, false));
-                        editableCases.set(caseIdx, new TestCase(caseNameField.getText(), newInj, cur.sensorExpected()));
-                        rebuildWidgets();
-                    }
-            ).dimensions(x + 130, y + 32 + i * 20, 70, 16).build());
-
-            // ▲ ▼ ✕
-            addDrawableChild(ButtonWidget.builder(Text.literal("▲"), b -> moveInjectorUp(fi))
-                    .dimensions(x + 202, y + 32 + i * 20, 14, 16).build());
-            addDrawableChild(ButtonWidget.builder(Text.literal("▼"), b -> moveInjectorDown(fi))
-                    .dimensions(x + 218, y + 32 + i * 20, 14, 16).build());
-            ButtonWidget del = addDrawableChild(ButtonWidget.builder(Text.literal("✕"), b -> deleteInjector(fi))
-                    .dimensions(x + 234, y + 32 + i * 20, 14, 16).build());
-            del.setMessage(Text.literal("✕").styled(s -> s.withColor(0xFF4444)));
-        }
-
-        // ── Sensors ───────────────────────────────────────────────────────────
-        for (int i = 0; i < sensors.size(); i++) {
-            final BlockPos p = sensors.get(i);
-            final int label = i + 1;
-            final int fi = i;
-            boolean val = current.sensorExpected().getOrDefault(p, false);
-
-            String senDisplay = sensorNames.getOrDefault(p, "");
-            if (senDisplay.isEmpty()) senDisplay = "Sen " + label;
-            String senButtonLabel = senDisplay + " : " + (val ? "ON" : "OFF");
-
-            // Bouton ON/OFF
-            addDrawableChild(ButtonWidget.builder(
-                    Text.literal(senButtonLabel), b -> {
-                        TestCase cur = editableCases.get(caseIdx);
-                        Map<BlockPos, Boolean> newSen = new LinkedHashMap<>(cur.sensorExpected());
-                        newSen.put(p, !newSen.getOrDefault(p, false));
-                        editableCases.set(caseIdx, new TestCase(caseNameField.getText(), cur.injectorValues(), newSen));
-                        rebuildWidgets();
-                    }
-            ).dimensions(x + 255, y + 32 + i * 20, 70, 16).build());
-
-            // ▲ ▼ ✕
-            addDrawableChild(ButtonWidget.builder(Text.literal("▲"), b -> moveSensorUp(fi))
-                    .dimensions(x + 327, y + 32 + i * 20, 14, 16).build());
-            addDrawableChild(ButtonWidget.builder(Text.literal("▼"), b -> moveSensorDown(fi))
-                    .dimensions(x + 343, y + 32 + i * 20, 14, 16).build());
-            ButtonWidget del = addDrawableChild(ButtonWidget.builder(Text.literal("✕"), b -> deleteSensor(fi))
-                    .dimensions(x + 359, y + 32 + i * 20, 14, 16).build());
-            del.setMessage(Text.literal("✕").styled(s -> s.withColor(0xFF4444)));
-        }
-
-        // ── Boutons du bas ────────────────────────────────────────────────────
+        // Boutons du bas
+        int btnY = gy + backgroundHeight - 22;
         addDrawableChild(ButtonWidget.builder(Text.literal("Scanner"), b -> scan())
-                .dimensions(x + 5, y + backgroundHeight - 25, 70, 20).build());
-
+                .dimensions(gx+5, btnY, 65, 18).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("▶ Lancer"), b -> runTests())
-                .dimensions(x + backgroundWidth - 170, y + backgroundHeight - 25, 80, 20).build());
-
+                .dimensions(gx+backgroundWidth-150, btnY, 70, 18).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Sauvegarder"), b -> save())
-                .dimensions(x + backgroundWidth - 85, y + backgroundHeight - 25, 80, 20).build());
+                .dimensions(gx+backgroundWidth-75, btnY, 70, 18).build());
 
-        // Applique le preview visuel du cas sélectionné dans le monde
         applyPreview(editableCases.get(selectedCase));
-    }
-
-    // ── Actions ───────────────────────────────────────────────────────────────
-
-    private void save() {
-        commitCurrentName();
-        ClientPlayNetworking.send(new SaveTestCasesPacket(
-                handler.bench, editableCases, injectors, sensors, selectedCase));
-        close();
-    }
-
-    private void scan() {
-        ClientPlayNetworking.send(new ScanBenchPacket(handler.bench));
-    }
-
-    private void runTests() {
-        commitCurrentName();
-        ClientPlayNetworking.send(new SaveTestCasesPacket(
-                handler.bench, editableCases, injectors, sensors, selectedCase));
-        ClientPlayNetworking.send(new RunTestsPacket(handler.bench));
-        Collections.fill(caseResults, null);
-        rebuildWidgets();
-    }
-
-    private void runSingleTest(int caseIdx) {
-        commitCurrentName();
-        ClientPlayNetworking.send(new SaveTestCasesPacket(
-                handler.bench, editableCases, injectors, sensors, selectedCase));
-        ClientPlayNetworking.send(new RunSingleTestPacket(handler.bench, caseIdx));
-        // Réinitialise uniquement le résultat de ce cas
-        if (caseIdx < caseResults.size()) caseResults.set(caseIdx, null);
-        rebuildWidgets();
-    }
-
-    public void onScanReceived(List<BlockPos> newInjectors, Map<BlockPos, String> newInjectorNames,
-                               List<BlockPos> newSensors,   Map<BlockPos, String> newSensorNames) {
-        injectors.clear();     injectors.addAll(newInjectors);
-        sensors.clear();       sensors.addAll(newSensors);
-        injectorNames.clear(); injectorNames.putAll(newInjectorNames);
-        sensorNames.clear();   sensorNames.putAll(newSensorNames);
-
-        for (int i = 0; i < editableCases.size(); i++) {
-            TestCase tc = editableCases.get(i);
-            Map<BlockPos, Boolean> newInj = new LinkedHashMap<>();
-            newInjectors.forEach(p -> newInj.put(p, tc.injectorValues().getOrDefault(p, false)));
-            Map<BlockPos, Boolean> newSen = new LinkedHashMap<>();
-            newSensors.forEach(p -> newSen.put(p, tc.sensorExpected().getOrDefault(p, false)));
-            editableCases.set(i, new TestCase(tc.name(), newInj, newSen));
-        }
-        rebuildWidgets();
-    }
-
-    public void onCaseResult(int idx, boolean pass) {
-        while (caseResults.size() <= idx) caseResults.add(null);
-        caseResults.set(idx, pass);
-        rebuildWidgets();
-    }
-
-    public void onAllResults(boolean[] results) {
-        for (int i = 0; i < results.length; i++) {
-            while (caseResults.size() <= i) caseResults.add(null);
-            caseResults.set(i, results[i]);
-        }
-        rebuildWidgets();
-    }
-
-    // ── Preview visuel dans le monde ──────────────────────────────────────────
-
-    /**
-     * Applique visuellement les états ON/OFF d'un cas de test sur les blocs du monde côté client.
-     * Flag 2 = NOTIFY_LISTENERS uniquement : met à jour le rendu sans notifier les voisins,
-     * ce qui évite tout déclenchement de logique redstone côté client.
-     */
-    private void applyPreview(TestCase tc) {
-        var world = MinecraftClient.getInstance().world;
-        if (world == null) return;
-
-        for (var entry : tc.injectorValues().entrySet()) {
-            var state = world.getBlockState(entry.getKey());
-            if (state.isOf(ModBlocks.INJECTOR))
-                world.setBlockState(entry.getKey(),
-                        state.with(InjectorBlock.POWERED, entry.getValue()), 2);
-        }
-        for (var entry : tc.sensorExpected().entrySet()) {
-            var state = world.getBlockState(entry.getKey());
-            if (state.isOf(ModBlocks.SENSOR))
-                // EXPECTED contrôle l'état visuel du preview, pas POWERED
-                world.setBlockState(entry.getKey(),
-                        state.with(SensorBlock.EXPECTED, entry.getValue()), 2);
-        }
-    }
-
-    /** Remet tous les injectors et sensors à OFF visuellement à la fermeture du GUI. */
-    private void clearPreview() {
-        var world = MinecraftClient.getInstance().world;
-        if (world == null) return;
-
-        for (BlockPos p : injectors) {
-            var state = world.getBlockState(p);
-            if (state.isOf(ModBlocks.INJECTOR))
-                world.setBlockState(p, state.with(InjectorBlock.POWERED, false), 2);
-        }
-        for (BlockPos p : sensors) {
-            var state = world.getBlockState(p);
-            if (state.isOf(ModBlocks.SENSOR))
-                world.setBlockState(p, state.with(SensorBlock.EXPECTED, false), 2);
-        }
-    }
-
-    @Override
-    public void removed() {
-        //clearPreview();
-        super.removed();
     }
 
     // ── Rendu ─────────────────────────────────────────────────────────────────
 
-    @Override protected void drawBackground(DrawContext ctx, float delta, int mouseX, int mouseY) {}
-    @Override public void renderBackground(DrawContext ctx, int mouseX, int mouseY, float delta) {}
+    @Override public void renderBackground(DrawContext ctx, int mx, int my, float delta) {}
 
     @Override
-    protected void drawForeground(DrawContext ctx, int mouseX, int mouseY) {
-        ctx.drawText(textRenderer, "Cas de test", 5,   6, 0x404040, false);
-        ctx.drawText(textRenderer, "Injectors",  130, 22, 0x404040, false);
-        ctx.drawText(textRenderer, "Sensors",    255, 22, 0x404040, false);
+    public void render(DrawContext ctx, int mx, int my, float delta) {
+        // Réapplique le preview à chaque frame — corrige le cas où un clic droit
+        // sur un bloc (ex: RenameBlockScreen) remet son état visuel à zéro
+        if (!editableCases.isEmpty()) applyPreview(editableCases.get(selectedCase));
+        int gx=(width-backgroundWidth)/2, gy=(height-backgroundHeight)/2;
+        ctx.fill(gx, gy, gx+backgroundWidth, gy+backgroundHeight, 0xCC1A1A1A);
+
+        super.render(ctx, mx, my, delta); // widgets fixes
+
+        // Titres
+        ctx.drawText(textRenderer,"Cas de test", gx+CX+2,   gy+BOX_Y_OFF-9, 0xAAAAAA, false);
+        ctx.drawText(textRenderer,"Injectors",   gx+IX+2,   gy+BOX_Y_OFF-9, 0xAAAAAA, false);
+        ctx.drawText(textRenderer,"Sensors",     gx+SX+2,   gy+BOX_Y_OFF-9, 0xAAAAAA, false);
+
+        int boxTop = gy + BOX_Y_OFF;
+        drawBox(ctx, gx+CX, boxTop, CW);
+        drawBox(ctx, gx+IX, boxTop, IW);
+        drawBox(ctx, gx+SX, boxTop, SW);
+
+        renderCaseList(ctx, gx+CX, boxTop, mx, my);
+        renderInjList( ctx, gx+IX, boxTop, mx, my);
+        renderSenList( ctx, gx+SX, boxTop, mx, my);
+
+        drawScrollBar(ctx, gx+CX, boxTop, CW, scrollCase, maxScrollCase(), caseTotalH());
+        drawScrollBar(ctx, gx+IX, boxTop, IW, scrollInj,  maxScrollInj(),  injTotalH());
+        drawScrollBar(ctx, gx+SX, boxTop, SW, scrollSen,  maxScrollSen(),  senTotalH());
     }
 
+    private void renderCaseList(DrawContext ctx, int bx, int by, int mx, int my) {
+        ctx.enableScissor(bx, by, bx+CW-SCROLL_W, by+LIST_H);
+        for (int i=0; i<editableCases.size(); i++) {
+            int iy = by + i*ROW_H - scrollCase;
+            if (iy+ROW_H<=by || iy>=by+LIST_H) continue;
+            boolean sel = i==selectedCase;
+            Boolean res = i<caseResults.size() ? caseResults.get(i) : null;
+            ctx.fill(bx, iy, bx+CW-SCROLL_W, iy+ROW_H-1, sel ? 0x88336699 : 0x55000000);
+            int col = res==null ? (sel?0xFFFFFF:0xCCCCCC) : res?0x55FF55:0xFF5555;
+            ctx.drawText(textRenderer, (sel?"▶ ":"  ")+editableCases.get(i).name(), bx+3, iy+5, col, false);
+            int ix = bx+CW-SCROLL_W-48;
+            drawIcon(ctx,"▲",ix,   iy,mx,my,0xAAAAAA);
+            drawIcon(ctx,"▼",ix+12,iy,mx,my,0xAAAAAA);
+            drawIcon(ctx,"✕",ix+24,iy,mx,my,0xFF5555);
+            drawIcon(ctx,"▶",ix+36,iy,mx,my,0x55FF55);
+        }
+        int addY = by + editableCases.size()*ROW_H - scrollCase;
+        if (addY>=by && addY+ROW_H<=by+LIST_H) {
+            ctx.fill(bx, addY, bx+CW-SCROLL_W, addY+ROW_H-1, 0x55003300);
+            ctx.drawText(textRenderer,"+ Ajouter", bx+3, addY+5, 0x55FF55, false);
+        }
+        ctx.disableScissor();
+    }
+
+    private void renderInjList(DrawContext ctx, int bx, int by, int mx, int my) {
+        ctx.enableScissor(bx, by, bx+IW-SCROLL_W, by+LIST_H);
+        TestCase cur = editableCases.get(selectedCase);
+        for (int i=0; i<injectors.size(); i++) {
+            BlockPos p = injectors.get(i);
+            int iy = by + i*ROW_H - scrollInj;
+            if (iy+ROW_H<=by || iy>=by+LIST_H) continue;
+            boolean val = cur.injectorValues().getOrDefault(p, false);
+            String name = injectorNames.getOrDefault(p,""); if (name.isEmpty()) name="Inj "+(i+1);
+            ctx.fill(bx, iy, bx+IW-SCROLL_W, iy+ROW_H-1, val?0x6600AA00:0x55000000);
+            ctx.drawText(textRenderer, name+" : "+(val?"ON":"OFF"), bx+3, iy+5, val?0x55FF55:0xCCCCCC, false);
+            int ix=bx+IW-SCROLL_W-36;
+            drawIcon(ctx,"▲",ix,   iy,mx,my,0xAAAAAA);
+            drawIcon(ctx,"▼",ix+12,iy,mx,my,0xAAAAAA);
+            drawIcon(ctx,"✕",ix+24,iy,mx,my,0xFF5555);
+        }
+        ctx.disableScissor();
+    }
+
+    private void renderSenList(DrawContext ctx, int bx, int by, int mx, int my) {
+        ctx.enableScissor(bx, by, bx+SW-SCROLL_W, by+LIST_H);
+        TestCase cur = editableCases.get(selectedCase);
+        for (int i=0; i<sensors.size(); i++) {
+            BlockPos p = sensors.get(i);
+            int iy = by + i*ROW_H - scrollSen;
+            if (iy+ROW_H<=by || iy>=by+LIST_H) continue;
+            boolean val = cur.sensorExpected().getOrDefault(p, false);
+            String name = sensorNames.getOrDefault(p,""); if (name.isEmpty()) name="Sen "+(i+1);
+            ctx.fill(bx, iy, bx+SW-SCROLL_W, iy+ROW_H-1, val?0x6600AA00:0x55000000);
+            ctx.drawText(textRenderer, name+" : "+(val?"ON":"OFF"), bx+3, iy+5, val?0x55FF55:0xCCCCCC, false);
+            int ix=bx+SW-SCROLL_W-36;
+            drawIcon(ctx,"▲",ix,   iy,mx,my,0xAAAAAA);
+            drawIcon(ctx,"▼",ix+12,iy,mx,my,0xAAAAAA);
+            drawIcon(ctx,"✕",ix+24,iy,mx,my,0xFF5555);
+        }
+        ctx.disableScissor();
+    }
+
+    private void drawIcon(DrawContext ctx, String icon, int x, int y, int mx, int my, int color) {
+        boolean hover = mx>=x && mx<x+11 && my>=y && my<y+ROW_H;
+        if (hover) ctx.fill(x, y, x+11, y+ROW_H-1, 0x44FFFFFF);
+        ctx.drawText(textRenderer, icon, x+2, y+5, color, false);
+    }
+
+    private void drawBox(DrawContext ctx, int bx, int by, int bw) {
+        ctx.fill(bx, by, bx+bw, by+LIST_H, 0x55000000);
+        ctx.fill(bx-1, by-1, bx+bw+1, by,             0xFF555555);
+        ctx.fill(bx-1, by+LIST_H, bx+bw+1, by+LIST_H+1, 0xFF555555);
+        ctx.fill(bx-1, by, bx, by+LIST_H,               0xFF555555);
+        ctx.fill(bx+bw, by, bx+bw+1, by+LIST_H,         0xFF555555);
+    }
+
+    private void drawScrollBar(DrawContext ctx, int bx, int by, int bw,
+                               int scrollVal, int maxScroll, int totalH) {
+        int tx = bx+bw-SCROLL_W;
+        ctx.fill(tx, by, tx+SCROLL_W, by+LIST_H, 0xFF222222);
+        if (maxScroll<=0) { ctx.fill(tx+1, by+1, tx+SCROLL_W-1, by+LIST_H-1, 0xFF444444); return; }
+        int th = thumbH(maxScroll, totalH);
+        int ty = by + thumbY(scrollVal, maxScroll, totalH);
+        ctx.fill(tx+1, ty, tx+SCROLL_W-1, ty+th, 0xFFAAAAAA);
+    }
+
+    // ── Clics ─────────────────────────────────────────────────────────────────
+
+    @Override
+    public boolean mouseClicked(double mx, double my, int btn) {
+        int gx=(width-backgroundWidth)/2, gy=(height-backgroundHeight)/2;
+        int boxTop = gy+BOX_Y_OFF;
+
+        DragTarget t = hitScrollBar(mx, my, gx, boxTop);
+        if (t!=DragTarget.NONE && btn==0) {
+            dragging=t; dragStartMouseY=(int)my; dragStartScroll=currentScroll(t); return true;
+        }
+        if (btn==0) {
+            if (clickInBox(mx,my,gx+CX,boxTop,CW)) return handleCaseClick(mx,my,gx+CX,boxTop);
+            if (clickInBox(mx,my,gx+IX,boxTop,IW)) return handleInjClick(mx,my,gx+IX,boxTop);
+            if (clickInBox(mx,my,gx+SX,boxTop,SW)) return handleSenClick(mx,my,gx+SX,boxTop);
+        }
+        return super.mouseClicked(mx, my, btn);
+    }
+
+    private boolean handleCaseClick(double mx, double my, int bx, int by) {
+        for (int i=0; i<editableCases.size(); i++) {
+            int iy = by+i*ROW_H-scrollCase;
+            if (my<iy||my>=iy+ROW_H) continue;
+            int ix=bx+CW-SCROLL_W-48;
+            if (mx>=ix    &&mx<ix+12) { moveCaseUp(i);    return true; }
+            if (mx>=ix+12 &&mx<ix+24) { moveCaseDown(i);  return true; }
+            if (mx>=ix+24 &&mx<ix+36) { deleteCase(i);    return true; }
+            if (mx>=ix+36 &&mx<ix+48) { runSingleTest(i); return true; }
+            commitCurrentName(); selectedCase=i; initWidgets(); return true;
+        }
+        int addY = by+editableCases.size()*ROW_H-scrollCase;
+        if (my>=addY&&my<addY+ROW_H) {
+            commitCurrentName(); addNewCase(); selectedCase=editableCases.size()-1;
+            scrollCase=maxScrollCase(); initWidgets(); return true;
+        }
+        return false;
+    }
+
+    private boolean handleInjClick(double mx, double my, int bx, int by) {
+        for (int i=0; i<injectors.size(); i++) {
+            int iy = by+i*ROW_H-scrollInj;
+            if (my<iy||my>=iy+ROW_H) continue;
+            int ix=bx+IW-SCROLL_W-36;
+            if (mx>=ix    &&mx<ix+12) { moveInjectorUp(i);   return true; }
+            if (mx>=ix+12 &&mx<ix+24) { moveInjectorDown(i); return true; }
+            if (mx>=ix+24 &&mx<ix+36) { deleteInjector(i);   return true; }
+            toggleInjector(selectedCase, injectors.get(i)); return true;
+        }
+        return false;
+    }
+
+    private boolean handleSenClick(double mx, double my, int bx, int by) {
+        for (int i=0; i<sensors.size(); i++) {
+            int iy = by+i*ROW_H-scrollSen;
+            if (my<iy||my>=iy+ROW_H) continue;
+            int ix=bx+SW-SCROLL_W-36;
+            if (mx>=ix    &&mx<ix+12) { moveSensorUp(i);   return true; }
+            if (mx>=ix+12 &&mx<ix+24) { moveSensorDown(i); return true; }
+            if (mx>=ix+24 &&mx<ix+36) { deleteSensor(i);   return true; }
+            toggleSensor(selectedCase, sensors.get(i)); return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean mouseScrolled(double mx, double my, double hAmt, double vAmt) {
+        int gx=(width-backgroundWidth)/2, gy=(height-backgroundHeight)/2;
+        int boxTop=gy+BOX_Y_OFF, delta=(int)(-vAmt*ROW_H);
+        if (clickInBox(mx,my,gx+CX,boxTop,CW)) { scrollCase=Math.max(0,Math.min(scrollCase+delta,maxScrollCase())); initWidgets(); return true; }
+        if (clickInBox(mx,my,gx+IX,boxTop,IW)) { scrollInj =Math.max(0,Math.min(scrollInj +delta,maxScrollInj())); initWidgets(); return true; }
+        if (clickInBox(mx,my,gx+SX,boxTop,SW)) { scrollSen =Math.max(0,Math.min(scrollSen +delta,maxScrollSen())); initWidgets(); return true; }
+        return super.mouseScrolled(mx, my, hAmt, vAmt);
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) {
+        if (btn==0 && dragging!=DragTarget.NONE) {
+            int diffY=(int)my-dragStartMouseY, maxS=maxScrollForTarget(dragging);
+            int th=thumbH(maxS,totalHForTarget(dragging)), trackH=LIST_H-th;
+            if (trackH>0) { setScroll(dragging, Math.max(0,Math.min(dragStartScroll+(int)((float)diffY/trackH*maxS),maxS))); initWidgets(); }
+            return true;
+        }
+        return super.mouseDragged(mx, my, btn, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int btn) {
+        if (btn==0) dragging=DragTarget.NONE;
+        return super.mouseReleased(mx, my, btn);
+    }
+
+    private boolean clickInBox(double mx,double my,int bx,int by,int bw) { return mx>=bx&&mx<bx+bw&&my>=by&&my<by+LIST_H; }
+    private DragTarget hitScrollBar(double mx,double my,int gx,int boxTop) {
+        if (onScrollBar(mx,my,gx+CX,boxTop,CW)) return DragTarget.CASE;
+        if (onScrollBar(mx,my,gx+IX,boxTop,IW)) return DragTarget.INJ;
+        if (onScrollBar(mx,my,gx+SX,boxTop,SW)) return DragTarget.SEN;
+        return DragTarget.NONE;
+    }
+    private boolean onScrollBar(double mx,double my,int bx,int by,int bw) { return mx>=bx+bw-SCROLL_W&&mx<bx+bw&&my>=by&&my<by+LIST_H; }
+    private int currentScroll(DragTarget t) { return switch(t){case CASE->scrollCase;case INJ->scrollInj;case SEN->scrollSen;default->0;}; }
+    private int maxScrollForTarget(DragTarget t) { return switch(t){case CASE->maxScrollCase();case INJ->maxScrollInj();case SEN->maxScrollSen();default->0;}; }
+    private int totalHForTarget(DragTarget t) { return switch(t){case CASE->caseTotalH();case INJ->injTotalH();case SEN->senTotalH();default->1;}; }
+    private void setScroll(DragTarget t,int v) { switch(t){case CASE->scrollCase=v;case INJ->scrollInj=v;case SEN->scrollSen=v;} }
+
+    // ── Réseau ────────────────────────────────────────────────────────────────
+
+    private void save() {
+        commitCurrentName();
+        ClientPlayNetworking.send(new SaveTestCasesPacket(handler.bench,editableCases,injectors,sensors,selectedCase));
+        close();
+    }
+    private void scan() { ClientPlayNetworking.send(new ScanBenchPacket(handler.bench)); }
+    private void runTests() {
+        commitCurrentName();
+        ClientPlayNetworking.send(new SaveTestCasesPacket(handler.bench,editableCases,injectors,sensors,selectedCase));
+        ClientPlayNetworking.send(new RunTestsPacket(handler.bench));
+        Collections.fill(caseResults,null); initWidgets();
+
+        clearPreview();
+    }
+    private void runSingleTest(int caseIdx) {
+        commitCurrentName();
+        ClientPlayNetworking.send(new SaveTestCasesPacket(handler.bench,editableCases,injectors,sensors,selectedCase));
+        ClientPlayNetworking.send(new RunSingleTestPacket(handler.bench,caseIdx));
+        if (caseIdx<caseResults.size()) caseResults.set(caseIdx,null); initWidgets();
+
+        clearPreview();
+    }
+
+    public void onScanReceived(List<BlockPos> newInj,Map<BlockPos,String> newInjNames,
+                               List<BlockPos> newSen,Map<BlockPos,String> newSenNames) {
+        injectors.clear(); injectors.addAll(newInj);
+        sensors.clear();   sensors.addAll(newSen);
+        injectorNames.clear(); injectorNames.putAll(newInjNames);
+        sensorNames.clear();   sensorNames.putAll(newSenNames);
+        for (int i=0;i<editableCases.size();i++) {
+            TestCase tc=editableCases.get(i);
+            Map<BlockPos,Boolean> mi=new LinkedHashMap<>(); newInj.forEach(p->mi.put(p,tc.injectorValues().getOrDefault(p,false)));
+            Map<BlockPos,Boolean> ms=new LinkedHashMap<>(); newSen.forEach(p->ms.put(p,tc.sensorExpected().getOrDefault(p,false)));
+            editableCases.set(i,new TestCase(tc.name(),mi,ms));
+        }
+        initWidgets();
+    }
+    public void onCaseResult(int idx,boolean pass) {
+        while(caseResults.size()<=idx) caseResults.add(null);
+        caseResults.set(idx,pass); initWidgets();
+    }
+    public void onAllResults(boolean[] results) {
+        for (int i=0;i<results.length;i++) { while(caseResults.size()<=i) caseResults.add(null); caseResults.set(i,results[i]); }
+        initWidgets();
+    }
+
+    // ── Preview ───────────────────────────────────────────────────────────────
+
+    private void applyPreview(TestCase tc) {
+        var world=MinecraftClient.getInstance().world; if (world==null) return;
+        for (var e:tc.injectorValues().entrySet()) { var s=world.getBlockState(e.getKey()); if (s.isOf(ModBlocks.INJECTOR)) world.setBlockState(e.getKey(),s.with(InjectorBlock.POWERED,e.getValue()),2); }
+        for (var e:tc.sensorExpected().entrySet()) { var s=world.getBlockState(e.getKey()); if (s.isOf(ModBlocks.SENSOR)) world.setBlockState(e.getKey(),s.with(SensorBlock.EXPECTED,e.getValue()),2); }
+    }
+    private void clearPreview() {
+        var world=MinecraftClient.getInstance().world; if (world==null) return;
+        for (BlockPos p:injectors) { var s=world.getBlockState(p); if (s.isOf(ModBlocks.INJECTOR)) world.setBlockState(p,s.with(InjectorBlock.POWERED,false),2); }
+        for (BlockPos p:sensors)   { var s=world.getBlockState(p); if (s.isOf(ModBlocks.SENSOR))   world.setBlockState(p,s.with(SensorBlock.EXPECTED,false),2); }
+    }
+    @Override public void removed() {
+        //clearPreview();
+        super.removed();
+    }
+    @Override protected void drawBackground(DrawContext ctx, float delta, int mx, int my) {}
     @Override public boolean shouldPause() { return false; }
 }

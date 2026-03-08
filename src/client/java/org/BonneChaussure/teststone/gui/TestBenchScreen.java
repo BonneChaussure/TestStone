@@ -110,7 +110,7 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
                         handler.testCases,
                         handler.selectedCaseIndex
                 ));
-        client.setScreen(new TestCaseScreen(h, client.player.getInventory(), Text.literal("Cas de test")));
+        client.setScreen(new TestCaseScreen(h, client.player.getInventory(), Text.literal("")));
     }
 
     @Override
