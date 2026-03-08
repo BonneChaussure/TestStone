@@ -2,10 +2,14 @@ package org.BonneChaussure.teststone.client;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
+import net.minecraft.client.render.block.entity.BlockEntityRendererFactories;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
+import org.BonneChaussure.blocks.InjectorBlockEntity;
+import org.BonneChaussure.blocks.SensorBlockEntity;
 import org.BonneChaussure.gui.RenameBlockScreenHandler;
 import org.BonneChaussure.gui.TestBenchScreenHandler;
 import org.BonneChaussure.gui.TestCaseScreenHandler;
@@ -18,6 +22,7 @@ import org.BonneChaussure.teststone.gui.TestBenchScreen;
 import org.BonneChaussure.teststone.gui.TestCaseScreen;
 import org.BonneChaussure.teststone.renderer.BoundaryBoxClientData;
 import org.BonneChaussure.teststone.renderer.BoundaryBoxRenderer;
+import org.BonneChaussure.teststone.renderer.NameTagRenderer;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -81,5 +86,8 @@ public class TeststoneClient implements ClientModInitializer {
                 }
             });
         });
+
+        WorldRenderEvents.AFTER_TRANSLUCENT.register(NameTagRenderer::render);
+
     }
 }

@@ -34,8 +34,14 @@ public class InjectorBlockEntity extends BlockEntity implements ExtendedScreenHa
     }
 
     public String getCustomName() { return customName; }
-    public void setCustomName(String name) { this.customName = name; markDirty(); }
-
+    public void setCustomName(String name) {
+        this.customName = name;
+        markDirty();
+        // Notifie le client de la mise à jour
+        if (world != null && !world.isClient) {
+            world.updateListeners(pos, getCachedState(), getCachedState(), 3);
+        }
+    }
     @Override
     protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
         super.writeNbt(nbt, registries);
@@ -62,5 +68,15 @@ public class InjectorBlockEntity extends BlockEntity implements ExtendedScreenHa
     @Override
     public RenameBlockScreenHandler.SyncData getScreenOpeningData(ServerPlayerEntity player) {
         return new RenameBlockScreenHandler.SyncData(pos, customName, true);
+    }
+
+    @Override
+    public BlockEntityUpdateS2CPacket toUpdatePacket() {
+        return BlockEntityUpdateS2CPacket.create(this);
+    }
+
+    @Override
+    public NbtCompound toInitialChunkDataNbt(RegistryWrapper.WrapperLookup registries) {
+        return createNbt(registries);
     }
 }

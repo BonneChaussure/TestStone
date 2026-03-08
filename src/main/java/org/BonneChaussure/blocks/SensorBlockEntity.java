@@ -7,6 +7,7 @@ import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryWrapper;
@@ -32,7 +33,14 @@ public class SensorBlockEntity extends BlockEntity implements ExtendedScreenHand
     }
 
     public String getCustomName() { return customName; }
-    public void setCustomName(String name) { this.customName = name; markDirty(); }
+    public void setCustomName(String name) {
+        this.customName = name;
+        markDirty();
+        // Notifie le client de la mise à jour
+        if (world != null && !world.isClient) {
+            world.updateListeners(pos, getCachedState(), getCachedState(), 3);
+        }
+    }
 
     @Override
     protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
@@ -60,5 +68,15 @@ public class SensorBlockEntity extends BlockEntity implements ExtendedScreenHand
     @Override
     public RenameBlockScreenHandler.SyncData getScreenOpeningData(ServerPlayerEntity player) {
         return new RenameBlockScreenHandler.SyncData(pos, customName, false);
+    }
+
+    @Override
+    public BlockEntityUpdateS2CPacket toUpdatePacket() {
+        return BlockEntityUpdateS2CPacket.create(this);
+    }
+
+    @Override
+    public NbtCompound toInitialChunkDataNbt(RegistryWrapper.WrapperLookup registries) {
+        return createNbt(registries);
     }
 }

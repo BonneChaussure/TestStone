@@ -2,6 +2,7 @@ package org.BonneChaussure.blocks;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockEntityProvider;
+import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -24,6 +25,11 @@ public class InjectorBlock extends Block implements BlockEntityProvider {
     public InjectorBlock(Settings settings) {
         super(settings);
         setDefaultState(getStateManager().getDefaultState().with(POWERED, false));
+    }
+
+    @Override
+    public BlockRenderType getRenderType(BlockState state) {
+        return BlockRenderType.MODEL;
     }
 
     @Override
