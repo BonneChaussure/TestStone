@@ -1,0 +1,5 @@
+{
+	"variants": {
+		"": { "model": "teststone:block/test_bench" }
+	}
+}

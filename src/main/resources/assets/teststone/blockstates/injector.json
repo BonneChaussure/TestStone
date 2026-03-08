@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "powered=false": { "model": "teststone:block/injector_off" },
+    "powered=true":  { "model": "teststone:block/injector_on"  }
+  }
+}

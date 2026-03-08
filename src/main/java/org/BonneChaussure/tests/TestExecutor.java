@@ -72,6 +72,7 @@ public class TestExecutor {
 
             case INJECT -> {
                 applyInjectors(tc);
+                applyExpected(tc);
                 phase = Phase.OBSERVE;
                 tickCounter = 0;
             }
@@ -109,6 +110,14 @@ public class TestExecutor {
                 world.setBlockState(p, state.with(InjectorBlock.POWERED, false));
             }
         }
+
+        // Reset EXPECTED sur tous les sensors
+        for (BlockPos p : be.getScannedSensors()) {
+            BlockState state = world.getBlockState(p);
+            if (state.isOf(ModBlocks.SENSOR)) {
+                world.setBlockState(p, state.with(SensorBlock.EXPECTED, false));
+            }
+        }
     }
 
     private void applyInjectors(TestCase tc) {
@@ -128,6 +137,15 @@ public class TestExecutor {
             if (actual != e.getValue()) return false;
         }
         return true;
+    }
+
+    private void applyExpected(TestCase tc) {
+        for (Map.Entry<BlockPos, Boolean> e : tc.sensorExpected().entrySet()) {
+            BlockState state = world.getBlockState(e.getKey());
+            if (state.isOf(ModBlocks.SENSOR)) {
+                world.setBlockState(e.getKey(), state.with(SensorBlock.EXPECTED, e.getValue()));
+            }
+        }
     }
 
     public int getCurrentCase() { return currentCase; }

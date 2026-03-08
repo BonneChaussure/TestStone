@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "teststone:block/sensor_off_expected_off"
+  }
+}

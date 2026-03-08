@@ -18,15 +18,18 @@ import org.jetbrains.annotations.Nullable;
 public class SensorBlock extends Block implements BlockEntityProvider {
 
     public static final BooleanProperty POWERED = Properties.POWERED;
+    public static final BooleanProperty EXPECTED = BooleanProperty.of("expected");
 
     public SensorBlock(Settings settings) {
         super(settings);
-        setDefaultState(getStateManager().getDefaultState().with(POWERED, false));
+        setDefaultState(getStateManager().getDefaultState()
+                .with(POWERED, false)
+                .with(EXPECTED, false));
     }
 
     @Override
     protected void appendProperties(StateManager.Builder<Block, BlockState> builder) {
-        builder.add(POWERED);
+        builder.add(POWERED, EXPECTED);
     }
 
     @Override

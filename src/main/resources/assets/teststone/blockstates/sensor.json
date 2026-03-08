@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "expected=false,powered=false": { "model": "teststone:block/sensor_off_expected_off" },
+    "expected=false,powered=true":  { "model": "teststone:block/sensor_on_expected_off" },
+    "expected=true,powered=false":  { "model": "teststone:block/sensor_off_expected_on"  },
+    "expected=true,powered=true":   { "model": "teststone:block/sensor_on_expected_on"  }
+  }
+}
