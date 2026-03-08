@@ -17,7 +17,6 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
 import org.BonneChaussure.gui.TestBenchScreenHandler;
 import org.BonneChaussure.tests.TestCase;
 import org.BonneChaussure.tests.TestExecutor;
@@ -150,6 +149,15 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         if (testCases.isEmpty()) return;
         testState = TestState.RUNNING;
         executor = new TestExecutor(this, serverWorld, testCases);
+        markDirty();
+    }
+
+    // ── Lance un seul cas ─────────────────────────────────────────────────────
+    public void startSingleTest(ServerWorld serverWorld, int caseIndex) {
+        if (testCases.isEmpty() || caseIndex < 0 || caseIndex >= testCases.size()) return;
+        testState = TestState.RUNNING;
+        executor = new TestExecutor(this, serverWorld,
+                List.of(testCases.get(caseIndex)), caseIndex);
         markDirty();
     }
 

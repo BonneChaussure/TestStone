@@ -9,6 +9,7 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import org.BonneChaussure.gui.TestCaseScreenHandler;
+import org.BonneChaussure.network.RunSingleTestPacket;
 import org.BonneChaussure.network.RunTestsPacket;
 import org.BonneChaussure.network.SaveTestCasesPacket;
 import org.BonneChaussure.network.ScanBenchPacket;
@@ -174,6 +175,10 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
             ButtonWidget del = addDrawableChild(ButtonWidget.builder(Text.literal("✕"), b -> deleteCase(idx))
                     .dimensions(x + 109, y + 20 + i * 22, 14, 18).build());
             del.setMessage(Text.literal("✕").styled(s -> s.withColor(0xFF4444)));
+            // ▶ lancer ce cas uniquement (vert)
+            ButtonWidget run = addDrawableChild(ButtonWidget.builder(Text.literal("▶"), b -> runSingleTest(idx))
+                    .dimensions(x + 125, y + 20 + i * 22, 14, 18).build());
+            run.setMessage(Text.literal("▶").styled(s -> s.withColor(0x55FF55)));
         }
 
         // Bouton + Ajouter
@@ -286,6 +291,17 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
                 handler.bench, editableCases, injectors, sensors));
         ClientPlayNetworking.send(new RunTestsPacket(handler.bench));
         Arrays.fill(caseResults, null);
+        rebuildWidgets();
+    }
+
+    private void runSingleTest(int caseIdx) {
+        commitCurrentName();
+        // Sauvegarde d'abord pour que le serveur ait les données à jour
+        ClientPlayNetworking.send(new SaveTestCasesPacket(
+                handler.bench, editableCases, injectors, sensors));
+        ClientPlayNetworking.send(new RunSingleTestPacket(handler.bench, caseIdx));
+        // Réinitialise uniquement le résultat de ce cas
+        if (caseIdx < caseResults.length) caseResults[caseIdx] = null;
         rebuildWidgets();
     }
 

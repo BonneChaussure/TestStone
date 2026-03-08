@@ -29,16 +29,28 @@ public class TestExecutor {
     private final ServerWorld world;
     private final List<TestCase> cases;
 
+    // Décalage d'index pour run single test :
+    // onCaseResult transmettra (currentCase + indexOffset) au lieu de currentCase,
+    // ce qui permet à SyncTestResultPacket de cibler le bon slot dans la liste complète.
+    private final int indexOffset;
+
     private int currentCase  = 0;
     private Phase phase      = Phase.RESET;
     private int tickCounter  = 0;
     private final Boolean[] results;
 
+    /** Constructeur normal — lance tous les cas passés, index offset = 0. */
     public TestExecutor(TestBenchBlockEntity be, ServerWorld world, List<TestCase> cases) {
-        this.be      = be;
-        this.world   = world;
-        this.cases   = cases;
-        this.results = new Boolean[cases.size()];
+        this(be, world, cases, 0);
+    }
+
+    /** Constructeur avec offset — utilisé pour "run single test". */
+    public TestExecutor(TestBenchBlockEntity be, ServerWorld world, List<TestCase> cases, int indexOffset) {
+        this.be          = be;
+        this.world       = world;
+        this.cases       = cases;
+        this.results     = new Boolean[cases.size()];
+        this.indexOffset = indexOffset;
     }
 
     public boolean tick() {
@@ -105,7 +117,8 @@ public class TestExecutor {
     }
 
     private void nextCase() {
-        be.onCaseResult(currentCase, results[currentCase]);
+        // On transmet l'index réel dans la liste complète (currentCase + indexOffset)
+        be.onCaseResult(currentCase + indexOffset, results[currentCase]);
         currentCase++;
         phase = Phase.RESET;
         tickCounter = 0;

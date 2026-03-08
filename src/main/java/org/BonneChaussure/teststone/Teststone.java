@@ -2,8 +2,6 @@ package org.BonneChaussure.teststone;
 
 import net.fabricmc.api.ModInitializer;
 import org.BonneChaussure.blocks.ModBlocks;
-import org.BonneChaussure.blocks.TestBenchBlockEntity;
-import org.BonneChaussure.gui.TestCaseScreenHandler;
 import org.BonneChaussure.network.*;
 
 public class Teststone implements ModInitializer {
@@ -18,6 +16,7 @@ public class Teststone implements ModInitializer {
         SyncScannedBlocksPacket.register();
         SaveTestCasesPacket.register();
         RunTestsPacket.register();
+        RunSingleTestPacket.register();
         SyncTestResultPacket.register();
         RenameBlockPacket.register();
     }
