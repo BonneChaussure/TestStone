@@ -115,7 +115,8 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
                         handler.benchPos,
                         inj,
                         sen,
-                        handler.testCases
+                        handler.testCases,
+                        handler.selectedCaseIndex
                 ));
         client.setScreen(new TestCaseScreen(h, client.player.getInventory(), Text.literal("Cas de test")));
     }

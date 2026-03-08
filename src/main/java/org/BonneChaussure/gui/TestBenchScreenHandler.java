@@ -23,7 +23,7 @@ public class TestBenchScreenHandler extends ScreenHandler {
     // Record qui transite du serveur → client à l'ouverture
     public record SyncData(BlockPos pos, int sizeX, int sizeY, int sizeZ, int color,
                            List<BlockPos> injectors, List<BlockPos> sensors,
-                           List<TestCase> testCases) {
+                           List<TestCase> testCases, int selectedCaseIndex) {
 
         public static final PacketCodec<RegistryByteBuf, SyncData> CODEC = PacketCodec.of(
                 (data, buf) -> {
@@ -36,6 +36,7 @@ public class TestBenchScreenHandler extends ScreenHandler {
                     data.sensors().forEach(buf::writeBlockPos);
                     buf.writeInt(data.testCases().size());
                     data.testCases().forEach(tc -> buf.writeNbt(tc.toNbt()));
+                    buf.writeInt(data.selectedCaseIndex());
                 },
                 buf -> {
                     BlockPos pos = buf.readBlockPos();
@@ -50,7 +51,8 @@ public class TestBenchScreenHandler extends ScreenHandler {
                     int caseCount = buf.readInt();
                     List<TestCase> cases = new ArrayList<>();
                     for (int i = 0; i < caseCount; i++) cases.add(TestCase.fromNbt((NbtCompound) buf.readNbt()));
-                    return new SyncData(pos, sx, sy, sz, color, inj, sen, cases);
+                    int selectedCaseIndex = buf.readInt();
+                    return new SyncData(pos, sx, sy, sz, color, inj, sen, cases, selectedCaseIndex);
                 }
         );
     }
@@ -63,6 +65,7 @@ public class TestBenchScreenHandler extends ScreenHandler {
 
     public final BlockPos benchPos;
     public final int sizeX, sizeY, sizeZ, color;
+    public final int selectedCaseIndex;
     public List<TestCase> testCases;
     public List<BlockPos> injectors;
     public List<BlockPos> sensors;
@@ -74,19 +77,21 @@ public class TestBenchScreenHandler extends ScreenHandler {
         this.benchPos = pos;
         this.sizeX = sizeX; this.sizeY = sizeY; this.sizeZ = sizeZ;
         this.color = color;
+        this.selectedCaseIndex = 0;
     }
 
     // Constructeur client — reçoit les vraies données du BE via SyncData
     public TestBenchScreenHandler(int syncId, PlayerInventory inv, SyncData data) {
         super(TYPE, syncId);
-        this.benchPos  = data.pos();
-        this.sizeX     = data.sizeX();
-        this.sizeY     = data.sizeY();
-        this.sizeZ     = data.sizeZ();
-        this.color     = data.color();
-        this.injectors = data.injectors();
-        this.sensors   = data.sensors();
-        this.testCases = data.testCases();
+        this.benchPos          = data.pos();
+        this.sizeX             = data.sizeX();
+        this.sizeY             = data.sizeY();
+        this.sizeZ             = data.sizeZ();
+        this.color             = data.color();
+        this.injectors         = data.injectors();
+        this.sensors           = data.sensors();
+        this.testCases         = data.testCases();
+        this.selectedCaseIndex = data.selectedCaseIndex();
     }
 
     @Override

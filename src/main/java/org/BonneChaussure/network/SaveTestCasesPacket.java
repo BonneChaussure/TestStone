@@ -19,7 +19,8 @@ public record SaveTestCasesPacket(
         BlockPos bench,
         List<TestCase> cases,
         List<BlockPos> injectorOrder,
-        List<BlockPos> sensorOrder
+        List<BlockPos> sensorOrder,
+        int selectedCaseIndex
 ) implements CustomPayload {
 
     public static final CustomPayload.Id<SaveTestCasesPacket> ID =
@@ -37,6 +38,8 @@ public record SaveTestCasesPacket(
 
                 buf.writeInt(packet.sensorOrder().size());
                 packet.sensorOrder().forEach(buf::writeBlockPos);
+
+                buf.writeInt(packet.selectedCaseIndex());
             },
             buf -> {
                 BlockPos bench = buf.readBlockPos();
@@ -54,7 +57,9 @@ public record SaveTestCasesPacket(
                 List<BlockPos> senOrder = new ArrayList<>();
                 for (int i = 0; i < senCount; i++) senOrder.add(buf.readBlockPos());
 
-                return new SaveTestCasesPacket(bench, cases, injOrder, senOrder);
+                int selectedCaseIndex = buf.readInt();
+
+                return new SaveTestCasesPacket(bench, cases, injOrder, senOrder, selectedCaseIndex);
             }
     );
 
@@ -70,6 +75,7 @@ public record SaveTestCasesPacket(
                 if (world.getBlockEntity(payload.bench()) instanceof TestBenchBlockEntity be) {
                     be.setTestCases(payload.cases());
                     be.setScannedBlockOrder(payload.injectorOrder(), payload.sensorOrder());
+                    be.setSelectedCaseIndex(payload.selectedCaseIndex());
                 }
             });
         });

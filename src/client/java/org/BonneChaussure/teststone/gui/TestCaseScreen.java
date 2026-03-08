@@ -1,6 +1,7 @@
 package org.BonneChaussure.teststone.gui;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -8,6 +9,9 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
+import org.BonneChaussure.blocks.InjectorBlock;
+import org.BonneChaussure.blocks.ModBlocks;
+import org.BonneChaussure.blocks.SensorBlock;
 import org.BonneChaussure.gui.TestCaseScreenHandler;
 import org.BonneChaussure.network.RunSingleTestPacket;
 import org.BonneChaussure.network.RunTestsPacket;
@@ -26,7 +30,8 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
     private final Map<BlockPos, String> sensorNames   = new LinkedHashMap<>();
 
     private final List<TestCase> editableCases;
-    private final Boolean[] caseResults;
+    // List<Boolean> au lieu de Boolean[] pour supporter l'ajout dynamique de cas
+    private final List<Boolean> caseResults = new ArrayList<>();
     private int selectedCase = 0;
     private TextFieldWidget caseNameField;
 
@@ -40,7 +45,10 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         this.sensorNames.putAll(TeststoneClient.lastSensorNames);
         this.editableCases = new ArrayList<>(handler.cases);
         if (editableCases.isEmpty()) addNewCase();
-        this.caseResults = new Boolean[editableCases.size()];
+        // Restaure le cas sélectionné sauvegardé, clampé à la taille réelle
+        this.selectedCase = Math.min(handler.selectedCaseIndex, Math.max(0, editableCases.size() - 1));
+        // Initialise caseResults à la bonne taille (null = pas encore exécuté)
+        for (int i = 0; i < editableCases.size(); i++) caseResults.add(null);
     }
 
     // ── Cas de test ───────────────────────────────────────────────────────────
@@ -51,6 +59,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         Map<BlockPos, Boolean> sen = new LinkedHashMap<>();
         sensors.forEach(p -> sen.put(p, false));
         editableCases.add(new TestCase("Cas " + (editableCases.size() + 1), inj, sen));
+        caseResults.add(null); // slot correspondant
     }
 
     private void commitCurrentName() {
@@ -64,6 +73,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         if (idx <= 0) return;
         commitCurrentName();
         Collections.swap(editableCases, idx, idx - 1);
+        Collections.swap(caseResults, idx, idx - 1);
         if (selectedCase == idx) selectedCase--;
         else if (selectedCase == idx - 1) selectedCase++;
         rebuildWidgets();
@@ -73,6 +83,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         if (idx >= editableCases.size() - 1) return;
         commitCurrentName();
         Collections.swap(editableCases, idx, idx + 1);
+        Collections.swap(caseResults, idx, idx + 1);
         if (selectedCase == idx) selectedCase++;
         else if (selectedCase == idx + 1) selectedCase--;
         rebuildWidgets();
@@ -81,6 +92,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
     private void deleteCase(int idx) {
         commitCurrentName();
         editableCases.remove(idx);
+        if (idx < caseResults.size()) caseResults.remove(idx);
         if (editableCases.isEmpty()) addNewCase();
         if (selectedCase >= editableCases.size()) selectedCase = editableCases.size() - 1;
         rebuildWidgets();
@@ -102,7 +114,6 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
 
     private void deleteInjector(int idx) {
         BlockPos removed = injectors.remove(idx);
-        // Retire la clé de tous les cas
         for (int i = 0; i < editableCases.size(); i++) {
             TestCase tc = editableCases.get(i);
             Map<BlockPos, Boolean> newInj = new LinkedHashMap<>(tc.injectorValues());
@@ -154,8 +165,8 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
             final int idx = i;
 
             // Couleur selon résultat
-            int labelColor = (i >= caseResults.length || caseResults[i] == null) ? 0x404040
-                    : caseResults[i] ? 0x00AA00 : 0xAA0000;
+            int labelColor = (i >= caseResults.size() || caseResults.get(i) == null) ? 0x404040
+                    : caseResults.get(i) ? 0x00AA00 : 0xAA0000;
 
             String label = (i == selectedCase ? "▶ " : "  ") + editableCases.get(i).name();
             ButtonWidget btn = addDrawableChild(ButtonWidget.builder(Text.literal(label), b -> {
@@ -175,7 +186,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
             ButtonWidget del = addDrawableChild(ButtonWidget.builder(Text.literal("✕"), b -> deleteCase(idx))
                     .dimensions(x + 109, y + 20 + i * 22, 14, 18).build());
             del.setMessage(Text.literal("✕").styled(s -> s.withColor(0xFF4444)));
-            // ▶ lancer ce cas uniquement (vert)
+            // ▶ vert — lancer ce cas uniquement
             ButtonWidget run = addDrawableChild(ButtonWidget.builder(Text.literal("▶"), b -> runSingleTest(idx))
                     .dimensions(x + 125, y + 20 + i * 22, 14, 18).build());
             run.setMessage(Text.literal("▶").styled(s -> s.withColor(0x55FF55)));
@@ -214,11 +225,13 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
 
             // Bouton ON/OFF
             addDrawableChild(ButtonWidget.builder(
-                    Text.literal(injButtonLabel), b -> { TestCase cur = editableCases.get(caseIdx);
+                    Text.literal(injButtonLabel), b -> {
+                        TestCase cur = editableCases.get(caseIdx);
                         Map<BlockPos, Boolean> newInj = new LinkedHashMap<>(cur.injectorValues());
                         newInj.put(p, !newInj.getOrDefault(p, false));
                         editableCases.set(caseIdx, new TestCase(caseNameField.getText(), newInj, cur.sensorExpected()));
-                        rebuildWidgets(); }
+                        rebuildWidgets();
+                    }
             ).dimensions(x + 130, y + 32 + i * 20, 70, 16).build());
 
             // ▲ ▼ ✕
@@ -244,11 +257,13 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
 
             // Bouton ON/OFF
             addDrawableChild(ButtonWidget.builder(
-                    Text.literal(senButtonLabel), b -> { TestCase cur = editableCases.get(caseIdx);
+                    Text.literal(senButtonLabel), b -> {
+                        TestCase cur = editableCases.get(caseIdx);
                         Map<BlockPos, Boolean> newSen = new LinkedHashMap<>(cur.sensorExpected());
                         newSen.put(p, !newSen.getOrDefault(p, false));
                         editableCases.set(caseIdx, new TestCase(caseNameField.getText(), cur.injectorValues(), newSen));
-                        rebuildWidgets(); }
+                        rebuildWidgets();
+                    }
             ).dimensions(x + 255, y + 32 + i * 20, 70, 16).build());
 
             // ▲ ▼ ✕
@@ -270,6 +285,9 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Sauvegarder"), b -> save())
                 .dimensions(x + backgroundWidth - 85, y + backgroundHeight - 25, 80, 20).build());
+
+        // Applique le preview visuel du cas sélectionné dans le monde
+        applyPreview(editableCases.get(selectedCase));
     }
 
     // ── Actions ───────────────────────────────────────────────────────────────
@@ -277,7 +295,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
     private void save() {
         commitCurrentName();
         ClientPlayNetworking.send(new SaveTestCasesPacket(
-                handler.bench, editableCases, injectors, sensors));
+                handler.bench, editableCases, injectors, sensors, selectedCase));
         close();
     }
 
@@ -288,20 +306,19 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
     private void runTests() {
         commitCurrentName();
         ClientPlayNetworking.send(new SaveTestCasesPacket(
-                handler.bench, editableCases, injectors, sensors));
+                handler.bench, editableCases, injectors, sensors, selectedCase));
         ClientPlayNetworking.send(new RunTestsPacket(handler.bench));
-        Arrays.fill(caseResults, null);
+        Collections.fill(caseResults, null);
         rebuildWidgets();
     }
 
     private void runSingleTest(int caseIdx) {
         commitCurrentName();
-        // Sauvegarde d'abord pour que le serveur ait les données à jour
         ClientPlayNetworking.send(new SaveTestCasesPacket(
-                handler.bench, editableCases, injectors, sensors));
+                handler.bench, editableCases, injectors, sensors, selectedCase));
         ClientPlayNetworking.send(new RunSingleTestPacket(handler.bench, caseIdx));
         // Réinitialise uniquement le résultat de ce cas
-        if (caseIdx < caseResults.length) caseResults[caseIdx] = null;
+        if (caseIdx < caseResults.size()) caseResults.set(caseIdx, null);
         rebuildWidgets();
     }
 
@@ -324,14 +341,66 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
     }
 
     public void onCaseResult(int idx, boolean pass) {
-        if (idx < caseResults.length) caseResults[idx] = pass;
+        while (caseResults.size() <= idx) caseResults.add(null);
+        caseResults.set(idx, pass);
         rebuildWidgets();
     }
 
     public void onAllResults(boolean[] results) {
-        for (int i = 0; i < results.length && i < caseResults.length; i++)
-            caseResults[i] = results[i];
+        for (int i = 0; i < results.length; i++) {
+            while (caseResults.size() <= i) caseResults.add(null);
+            caseResults.set(i, results[i]);
+        }
         rebuildWidgets();
+    }
+
+    // ── Preview visuel dans le monde ──────────────────────────────────────────
+
+    /**
+     * Applique visuellement les états ON/OFF d'un cas de test sur les blocs du monde côté client.
+     * Flag 2 = NOTIFY_LISTENERS uniquement : met à jour le rendu sans notifier les voisins,
+     * ce qui évite tout déclenchement de logique redstone côté client.
+     */
+    private void applyPreview(TestCase tc) {
+        var world = MinecraftClient.getInstance().world;
+        if (world == null) return;
+
+        for (var entry : tc.injectorValues().entrySet()) {
+            var state = world.getBlockState(entry.getKey());
+            if (state.isOf(ModBlocks.INJECTOR))
+                world.setBlockState(entry.getKey(),
+                        state.with(InjectorBlock.POWERED, entry.getValue()), 2);
+        }
+        for (var entry : tc.sensorExpected().entrySet()) {
+            var state = world.getBlockState(entry.getKey());
+            if (state.isOf(ModBlocks.SENSOR))
+                // EXPECTED contrôle l'état visuel du preview, pas POWERED
+                world.setBlockState(entry.getKey(),
+                        state.with(SensorBlock.EXPECTED, entry.getValue()), 2);
+        }
+    }
+
+    /** Remet tous les injectors et sensors à OFF visuellement à la fermeture du GUI. */
+    private void clearPreview() {
+        var world = MinecraftClient.getInstance().world;
+        if (world == null) return;
+
+        for (BlockPos p : injectors) {
+            var state = world.getBlockState(p);
+            if (state.isOf(ModBlocks.INJECTOR))
+                world.setBlockState(p, state.with(InjectorBlock.POWERED, false), 2);
+        }
+        for (BlockPos p : sensors) {
+            var state = world.getBlockState(p);
+            if (state.isOf(ModBlocks.SENSOR))
+                world.setBlockState(p, state.with(SensorBlock.EXPECTED, false), 2);
+        }
+    }
+
+    @Override
+    public void removed() {
+        //clearPreview();
+        super.removed();
     }
 
     // ── Rendu ─────────────────────────────────────────────────────────────────

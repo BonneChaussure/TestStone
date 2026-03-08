@@ -41,6 +41,7 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     private List<BlockPos> scannedInjectors = new ArrayList<>();
     private List<BlockPos> scannedSensors   = new ArrayList<>();
     private List<TestCase> testCases        = new ArrayList<>();
+    private int selectedCaseIndex           = 0;
 
     public enum TestState { IDLE, RUNNING, DONE }
     private TestState testState = TestState.IDLE;
@@ -97,6 +98,12 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         markDirty();
     }
 
+    public int getSelectedCaseIndex() { return selectedCaseIndex; }
+    public void setSelectedCaseIndex(int idx) {
+        this.selectedCaseIndex = Math.max(0, idx);
+        markDirty();
+    }
+
     @Override
     public Text getDisplayName() {
         return Text.translatable("block.teststone.test_bench");
@@ -111,7 +118,8 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     public TestBenchScreenHandler.SyncData getScreenOpeningData(ServerPlayerEntity player) {
         return new TestBenchScreenHandler.SyncData(
                 pos, sizeX, sizeY, sizeZ, color,
-                scannedInjectors, scannedSensors, testCases
+                scannedInjectors, scannedSensors, testCases,
+                selectedCaseIndex
         );
     }
 
@@ -207,6 +215,8 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         testCases.forEach(tc -> caseList.add(tc.toNbt()));
         nbt.put("testCases", caseList);
 
+        nbt.putInt("selectedCaseIndex", selectedCaseIndex);
+
     }
 
     @Override
@@ -235,5 +245,7 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         NbtList caseNbt = nbt.getList("testCases", 10);
         testCases = new ArrayList<>();
         for (int i = 0; i < caseNbt.size(); i++) testCases.add(TestCase.fromNbt(caseNbt.getCompound(i)));
+
+        if (nbt.contains("selectedCaseIndex")) selectedCaseIndex = nbt.getInt("selectedCaseIndex");
     }
 }

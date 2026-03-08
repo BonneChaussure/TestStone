@@ -20,7 +20,8 @@ import java.util.List;
 
 public class TestCaseScreenHandler extends ScreenHandler {
 
-    public record SyncData(BlockPos bench, List<BlockPos> injectors, List<BlockPos> sensors, List<TestCase> cases) {
+    public record SyncData(BlockPos bench, List<BlockPos> injectors, List<BlockPos> sensors,
+                           List<TestCase> cases, int selectedCaseIndex) {
         public static final PacketCodec<RegistryByteBuf, SyncData> CODEC = PacketCodec.of(
                 (data, buf) -> {
                     buf.writeBlockPos(data.bench());
@@ -30,6 +31,7 @@ public class TestCaseScreenHandler extends ScreenHandler {
                     data.sensors().forEach(buf::writeBlockPos);
                     buf.writeInt(data.cases().size());
                     data.cases().forEach(tc -> buf.writeNbt(tc.toNbt()));
+                    buf.writeInt(data.selectedCaseIndex());
                 },
                 buf -> {
                     BlockPos bench = buf.readBlockPos();
@@ -42,7 +44,8 @@ public class TestCaseScreenHandler extends ScreenHandler {
                     int caseCount = buf.readInt();
                     List<TestCase> cases = new ArrayList<>();
                     for (int i = 0; i < caseCount; i++) cases.add(TestCase.fromNbt((NbtCompound) buf.readNbt()));
-                    return new SyncData(bench, inj, sen, cases);
+                    int selectedCaseIndex = buf.readInt();
+                    return new SyncData(bench, inj, sen, cases, selectedCaseIndex);
                 }
         );
     }
@@ -57,13 +60,15 @@ public class TestCaseScreenHandler extends ScreenHandler {
     public final List<BlockPos> injectors;
     public final List<BlockPos> sensors;
     public final List<TestCase> cases;
+    public final int selectedCaseIndex;
 
     public TestCaseScreenHandler(int syncId, PlayerInventory inv, SyncData data) {
         super(TYPE, syncId);
-        this.bench     = data.bench();
-        this.injectors = data.injectors();
-        this.sensors   = data.sensors();
-        this.cases     = new ArrayList<>(data.cases());
+        this.bench             = data.bench();
+        this.injectors         = data.injectors();
+        this.sensors           = data.sensors();
+        this.cases             = new ArrayList<>(data.cases());
+        this.selectedCaseIndex = data.selectedCaseIndex();
     }
 
     @Override
