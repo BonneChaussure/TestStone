@@ -22,7 +22,9 @@ import org.BonneChaussure.tests.TestCase;
 import org.BonneChaussure.tests.TestExecutor;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenHandlerFactory<TestBenchScreenHandler.SyncData> {
 
@@ -40,6 +42,8 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
 
     private List<BlockPos> scannedInjectors = new ArrayList<>();
     private List<BlockPos> scannedSensors   = new ArrayList<>();
+    private Map<BlockPos, String> injectorNames = new LinkedHashMap<>();
+    private Map<BlockPos, String> sensorNames   = new LinkedHashMap<>();
     private List<TestCase> testCases        = new ArrayList<>();
     private int selectedCaseIndex           = 0;
 
@@ -85,11 +89,16 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
 
     public List<BlockPos> getScannedInjectors() { return scannedInjectors; }
     public List<BlockPos> getScannedSensors()   { return scannedSensors; }
+    public Map<BlockPos, String> getInjectorNames() { return injectorNames; }
+    public Map<BlockPos, String> getSensorNames()   { return sensorNames; }
     public List<TestCase> getTestCases()        { return testCases; }
 
-    public void setScannedBlocks(List<BlockPos> injectors, List<BlockPos> sensors) {
+    public void setScannedBlocks(List<BlockPos> injectors, Map<BlockPos, String> injNames,
+                                 List<BlockPos> sensors,   Map<BlockPos, String> senNames) {
         this.scannedInjectors = injectors;
         this.scannedSensors   = sensors;
+        this.injectorNames    = new LinkedHashMap<>(injNames);
+        this.sensorNames      = new LinkedHashMap<>(senNames);
         markDirty();
     }
 
@@ -118,8 +127,9 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     public TestBenchScreenHandler.SyncData getScreenOpeningData(ServerPlayerEntity player) {
         return new TestBenchScreenHandler.SyncData(
                 pos, sizeX, sizeY, sizeZ, color,
-                scannedInjectors, scannedSensors, testCases,
-                selectedCaseIndex
+                scannedInjectors, injectorNames,
+                scannedSensors, sensorNames,
+                testCases, selectedCaseIndex
         );
     }
 
@@ -207,9 +217,17 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         scannedInjectors.forEach(p -> { NbtCompound e = new NbtCompound(); e.putLong("p", p.asLong()); injList.add(e); });
         nbt.put("scannedInjectors", injList);
 
+        NbtList injNameList = new NbtList();
+        injectorNames.forEach((p, name) -> { NbtCompound e = new NbtCompound(); e.putLong("p", p.asLong()); e.putString("n", name); injNameList.add(e); });
+        nbt.put("injectorNames", injNameList);
+
         NbtList senList = new NbtList();
         scannedSensors.forEach(p -> { NbtCompound e = new NbtCompound(); e.putLong("p", p.asLong()); senList.add(e); });
         nbt.put("scannedSensors", senList);
+
+        NbtList senNameList = new NbtList();
+        sensorNames.forEach((p, name) -> { NbtCompound e = new NbtCompound(); e.putLong("p", p.asLong()); e.putString("n", name); senNameList.add(e); });
+        nbt.put("sensorNames", senNameList);
 
         NbtList caseList = new NbtList();
         testCases.forEach(tc -> caseList.add(tc.toNbt()));
@@ -238,9 +256,23 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         scannedInjectors = new ArrayList<>();
         for (int i = 0; i < injNbt.size(); i++) scannedInjectors.add(BlockPos.fromLong(injNbt.getCompound(i).getLong("p")));
 
+        NbtList injNameNbt = nbt.getList("injectorNames", 10);
+        injectorNames = new LinkedHashMap<>();
+        for (int i = 0; i < injNameNbt.size(); i++) {
+            NbtCompound e = injNameNbt.getCompound(i);
+            injectorNames.put(BlockPos.fromLong(e.getLong("p")), e.getString("n"));
+        }
+
         NbtList senNbt = nbt.getList("scannedSensors", 10);
         scannedSensors = new ArrayList<>();
         for (int i = 0; i < senNbt.size(); i++) scannedSensors.add(BlockPos.fromLong(senNbt.getCompound(i).getLong("p")));
+
+        NbtList senNameNbt = nbt.getList("sensorNames", 10);
+        sensorNames = new LinkedHashMap<>();
+        for (int i = 0; i < senNameNbt.size(); i++) {
+            NbtCompound e = senNameNbt.getCompound(i);
+            sensorNames.put(BlockPos.fromLong(e.getLong("p")), e.getString("n"));
+        }
 
         NbtList caseNbt = nbt.getList("testCases", 10);
         testCases = new ArrayList<>();

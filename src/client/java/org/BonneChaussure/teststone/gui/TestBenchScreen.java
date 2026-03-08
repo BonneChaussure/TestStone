@@ -10,7 +10,6 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import org.BonneChaussure.gui.TestBenchScreenHandler;
 import org.BonneChaussure.gui.TestCaseScreenHandler;
-import org.BonneChaussure.network.ScanBenchPacket;
 import org.BonneChaussure.network.UpdateBenchPacket;
 import org.BonneChaussure.teststone.client.TeststoneClient;
 
@@ -99,22 +98,15 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
     }
 
     private void openTestCases() {
-        // Priorité aux données déjà scannées du BE (via SyncData)
-        // Fallback sur le dernier scan en mémoire si le BE n'en a pas
-        List<BlockPos> inj = !handler.injectors.isEmpty()
-                ? handler.injectors
-                : TeststoneClient.lastScannedInjectors;
-        List<BlockPos> sen = !handler.sensors.isEmpty()
-                ? handler.sensors
-                : TeststoneClient.lastScannedSensors;
-
         assert client != null;
         assert client.player != null;
         var h = new TestCaseScreenHandler(0, client.player.getInventory(),
                 new TestCaseScreenHandler.SyncData(
                         handler.benchPos,
-                        inj,
-                        sen,
+                        handler.injectors,
+                        handler.injectorNames,
+                        handler.sensors,
+                        handler.sensorNames,
                         handler.testCases,
                         handler.selectedCaseIndex
                 ));

@@ -70,7 +70,7 @@ public record ScanBenchPacket(BlockPos bench) implements CustomPayload {
                     senNames.put(p, name);
                 }
 
-                be.setScannedBlocks(injectors, sensors);
+                be.setScannedBlocks(injectors, injNames, sensors, senNames);
 
                 // Renvoie les résultats au client
                 ServerPlayNetworking.send(context.player(),

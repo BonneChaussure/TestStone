@@ -18,7 +18,6 @@ import org.BonneChaussure.network.RunTestsPacket;
 import org.BonneChaussure.network.SaveTestCasesPacket;
 import org.BonneChaussure.network.ScanBenchPacket;
 import org.BonneChaussure.tests.TestCase;
-import org.BonneChaussure.teststone.client.TeststoneClient;
 
 import java.util.*;
 
@@ -41,8 +40,10 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         this.backgroundHeight = 220;
         this.injectors.addAll(handler.injectors);
         this.sensors.addAll(handler.sensors);
-        this.injectorNames.putAll(TeststoneClient.lastInjectorNames);
-        this.sensorNames.putAll(TeststoneClient.lastSensorNames);
+        // Noms depuis le handler (données persistées du BE) — plus fiable que TeststoneClient.last*
+        // qui est une variable globale du dernier scan, indépendante du bench
+        this.injectorNames.putAll(handler.injectorNames);
+        this.sensorNames.putAll(handler.sensorNames);
         this.editableCases = new ArrayList<>(handler.cases);
         if (editableCases.isEmpty()) addNewCase();
         // Restaure le cas sélectionné sauvegardé, clampé à la taille réelle
