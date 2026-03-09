@@ -54,7 +54,7 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
                 .dimensions(x + 75, y + 118, 90, 20)
                 .build());
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Cas de test →"), btn -> openTestCases())
+        addDrawableChild(ButtonWidget.builder(Text.literal("Test case →"), btn -> openTestCases())
                 .dimensions(x + 150, y + 118, 80, 20)
                 .build());
     }
@@ -125,7 +125,7 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
         ctx.drawText(textRenderer, "Size X :", lx, 24, 0x404040, false);
         ctx.drawText(textRenderer, "Size Y :", lx, 48, 0x404040, false);
         ctx.drawText(textRenderer, "Size Z :", lx, 72, 0x404040, false);
-        ctx.drawText(textRenderer, "Couleur (hex) :", lx, 96, 0x404040, false);
+        ctx.drawText(textRenderer, "Color (hex) :", lx, 96, 0x404040, false);
     }
 
     @Override

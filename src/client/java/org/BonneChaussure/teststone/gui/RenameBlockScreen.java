@@ -68,7 +68,7 @@ public class RenameBlockScreen extends HandledScreen<RenameBlockScreenHandler> {
 
     @Override
     protected void drawForeground(DrawContext ctx, int mouseX, int mouseY) {
-        String title = handler.isInjector ? "Renommer Injector" : "Renommer Sensor";
+        String title = handler.isInjector ? "Rename Injector" : "Rename Sensor";
         ctx.drawText(textRenderer, title, 10, 10, 0x404040, false);
     }
 

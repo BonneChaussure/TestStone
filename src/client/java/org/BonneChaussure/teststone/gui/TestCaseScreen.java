@@ -91,7 +91,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         injectors.forEach(p -> inj.put(p, false));
         Map<BlockPos, Boolean> sen = new LinkedHashMap<>();
         sensors.forEach(p -> sen.put(p, false));
-        editableCases.add(new TestCase("Cas " + (editableCases.size() + 1), inj, sen));
+        editableCases.add(new TestCase("Case " + (editableCases.size() + 1), inj, sen));
         caseResults.add(null);
     }
     private void commitCurrentName() {
@@ -161,7 +161,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         // Y = gy + BOX_Y_OFF + LIST_H + 4  (juste sous les boîtes)
         int nameY = gy + BOX_Y_OFF + LIST_H + 5;
         caseNameField = addDrawableChild(new TextFieldWidget(
-                textRenderer, gx + 75, nameY, 160, 14, Text.literal("Nom")));
+                textRenderer, gx + 95, nameY, 160, 14, Text.literal("Nom")));
         caseNameField.setText(editableCases.get(selectedCase).name());
         caseNameField.setMaxLength(32);
         caseNameField.setChangedListener(text -> {
@@ -174,11 +174,11 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
 
         // Boutons du bas
         int btnY = gy + backgroundHeight - 22;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Scanner"), b -> scan())
-                .dimensions(gx+5, btnY, 65, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("▶ Lancer"), b -> runTests())
-                .dimensions(gx+backgroundWidth-150, btnY, 70, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Réinitialiser"), b -> clearPreview())
+        addDrawableChild(ButtonWidget.builder(Text.literal("Update blocks"), b -> scan())
+                .dimensions(gx+5, btnY, 80, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("▶ Start tests"), b -> runTests())
+                .dimensions(gx+backgroundWidth-170, btnY, 80, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Reset"), b -> clearPreview())
                 .dimensions(gx+backgroundWidth-75, btnY, 70, 18).build());
 
         applyPreview(editableCases.get(selectedCase));
@@ -199,13 +199,13 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         super.render(ctx, mx, my, delta); // widgets fixes
 
         // Titres
-        ctx.drawText(textRenderer,"Cas de test", gx+CX+2,   gy+BOX_Y_OFF-9, 0xAAAAAA, false);
+        ctx.drawText(textRenderer,"Test cases", gx+CX+2,   gy+BOX_Y_OFF-9, 0xAAAAAA, false);
         ctx.drawText(textRenderer,"Injectors",   gx+IX+2,   gy+BOX_Y_OFF-9, 0xAAAAAA, false);
         ctx.drawText(textRenderer,"Sensors",     gx+SX+2,   gy+BOX_Y_OFF-9, 0xAAAAAA, false);
 
         // Label du champ nom
         int nameY = gy + BOX_Y_OFF + LIST_H + 5;
-        ctx.drawText(textRenderer, "Nom du cas :", gx + 5, nameY + 3, 0xAAAAAA, false);
+        ctx.drawText(textRenderer, "Test case name :", gx + 5, nameY + 3, 0xAAAAAA, false);
 
         int boxTop = gy + BOX_Y_OFF;
         drawBox(ctx, gx+CX, boxTop, CW);
@@ -240,7 +240,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         int addY = by + editableCases.size()*ROW_H - scrollCase;
         if (addY>=by && addY+ROW_H<=by+LIST_H) {
             ctx.fill(bx, addY, bx+CW-SCROLL_W, addY+ROW_H-1, 0x55003300);
-            ctx.drawText(textRenderer,"+ Ajouter", bx+3, addY+5, 0x55FF55, false);
+            ctx.drawText(textRenderer,"+ Add", bx+3, addY+5, 0x55FF55, false);
         }
         ctx.disableScissor();
     }
