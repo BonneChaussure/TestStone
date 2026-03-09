@@ -32,13 +32,13 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
     private int selectedCase = 0;
     private TextFieldWidget caseNameField;
 
-    private static final int ROW_H    = 18;
-    private static final int LIST_H   = 150;
+    private static final int ROW_H     = 18;
+    private static final int LIST_H    = 140;  // réduit pour laisser place au champ nom
     private static final int BOX_Y_OFF = 22;
     private static final int CX = 5,   CW = 128;
     private static final int IX = 143, IW = 118;
     private static final int SX = 271, SW = 118;
-    private static final int SCROLL_W = 6;
+    private static final int SCROLL_W  = 6;
 
     private int scrollCase = 0, scrollInj = 0, scrollSen = 0;
 
@@ -50,7 +50,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
     public TestCaseScreen(TestCaseScreenHandler handler, PlayerInventory inv, Text title) {
         super(handler, inv, title);
         this.backgroundWidth  = 400;
-        this.backgroundHeight = 200;
+        this.backgroundHeight = 210;
         injectors.addAll(handler.injectors);
         sensors.addAll(handler.sensors);
         injectorNames.putAll(handler.injectorNames);
@@ -157,9 +157,11 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         int gx=(width-backgroundWidth)/2, gy=(height-backgroundHeight)/2;
         if (editableCases.isEmpty()) return;
 
-        // Champ nom — autosave à chaque frappe
+        // Champ nom — placé entre les boîtes et les boutons du bas
+        // Y = gy + BOX_Y_OFF + LIST_H + 4  (juste sous les boîtes)
+        int nameY = gy + BOX_Y_OFF + LIST_H + 5;
         caseNameField = addDrawableChild(new TextFieldWidget(
-                textRenderer, gx+IX, gy+5, 110, 14, Text.literal("Nom")));
+                textRenderer, gx + 75, nameY, 160, 14, Text.literal("Nom")));
         caseNameField.setText(editableCases.get(selectedCase).name());
         caseNameField.setMaxLength(32);
         caseNameField.setChangedListener(text -> {
@@ -200,6 +202,10 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         ctx.drawText(textRenderer,"Cas de test", gx+CX+2,   gy+BOX_Y_OFF-9, 0xAAAAAA, false);
         ctx.drawText(textRenderer,"Injectors",   gx+IX+2,   gy+BOX_Y_OFF-9, 0xAAAAAA, false);
         ctx.drawText(textRenderer,"Sensors",     gx+SX+2,   gy+BOX_Y_OFF-9, 0xAAAAAA, false);
+
+        // Label du champ nom
+        int nameY = gy + BOX_Y_OFF + LIST_H + 5;
+        ctx.drawText(textRenderer, "Nom du cas :", gx + 5, nameY + 3, 0xAAAAAA, false);
 
         int boxTop = gy + BOX_Y_OFF;
         drawBox(ctx, gx+CX, boxTop, CW);
@@ -422,6 +428,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
     }
     private void runSingleTest(int caseIdx) {
         commitCurrentName();
+        selectedCase = caseIdx;
         autoSave();
         ClientPlayNetworking.send(new RunSingleTestPacket(handler.bench, caseIdx));
         if (caseIdx < caseResults.size()) caseResults.set(caseIdx, null); initWidgets();
