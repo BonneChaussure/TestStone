@@ -104,47 +104,47 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         if (idx <= 0) return; commitCurrentName();
         Collections.swap(editableCases, idx, idx-1); Collections.swap(caseResults, idx, idx-1);
         if (selectedCase==idx) selectedCase--; else if (selectedCase==idx-1) selectedCase++;
-        initWidgets();
+        initWidgets(); autoSave();
     }
     private void moveCaseDown(int idx) {
         if (idx >= editableCases.size()-1) return; commitCurrentName();
         Collections.swap(editableCases, idx, idx+1); Collections.swap(caseResults, idx, idx+1);
         if (selectedCase==idx) selectedCase++; else if (selectedCase==idx+1) selectedCase--;
-        initWidgets();
+        initWidgets(); autoSave();
     }
     private void deleteCase(int idx) {
         commitCurrentName(); editableCases.remove(idx);
         if (idx < caseResults.size()) caseResults.remove(idx);
         if (editableCases.isEmpty()) addNewCase();
         if (selectedCase >= editableCases.size()) selectedCase = editableCases.size()-1;
-        initWidgets();
+        initWidgets(); autoSave();
     }
 
     // ── Logique injectors/sensors ─────────────────────────────────────────────
 
-    private void moveInjectorUp(int idx)   { if (idx>0) { Collections.swap(injectors,idx,idx-1); initWidgets(); } }
-    private void moveInjectorDown(int idx) { if (idx<injectors.size()-1) { Collections.swap(injectors,idx,idx+1); initWidgets(); } }
+    private void moveInjectorUp(int idx)   { if (idx>0) { Collections.swap(injectors,idx,idx-1); initWidgets(); autoSave(); } }
+    private void moveInjectorDown(int idx) { if (idx<injectors.size()-1) { Collections.swap(injectors,idx,idx+1); initWidgets(); autoSave(); } }
     private void deleteInjector(int idx) {
         BlockPos removed = injectors.remove(idx);
         for (int i=0;i<editableCases.size();i++) { TestCase tc=editableCases.get(i); Map<BlockPos,Boolean> m=new LinkedHashMap<>(tc.injectorValues()); m.remove(removed); editableCases.set(i,new TestCase(tc.name(),m,tc.sensorExpected())); }
-        initWidgets();
+        initWidgets(); autoSave();
     }
-    private void moveSensorUp(int idx)   { if (idx>0) { Collections.swap(sensors,idx,idx-1); initWidgets(); } }
-    private void moveSensorDown(int idx) { if (idx<sensors.size()-1) { Collections.swap(sensors,idx,idx+1); initWidgets(); } }
+    private void moveSensorUp(int idx)   { if (idx>0) { Collections.swap(sensors,idx,idx-1); initWidgets(); autoSave(); } }
+    private void moveSensorDown(int idx) { if (idx<sensors.size()-1) { Collections.swap(sensors,idx,idx+1); initWidgets(); autoSave(); } }
     private void deleteSensor(int idx) {
         BlockPos removed = sensors.remove(idx);
         for (int i=0;i<editableCases.size();i++) { TestCase tc=editableCases.get(i); Map<BlockPos,Boolean> m=new LinkedHashMap<>(tc.sensorExpected()); m.remove(removed); editableCases.set(i,new TestCase(tc.name(),tc.injectorValues(),m)); }
-        initWidgets();
+        initWidgets(); autoSave();
     }
     private void toggleInjector(int caseIdx, BlockPos p) {
         commitCurrentName(); TestCase cur=editableCases.get(caseIdx);
         Map<BlockPos,Boolean> m=new LinkedHashMap<>(cur.injectorValues()); m.put(p,!m.getOrDefault(p,false));
-        editableCases.set(caseIdx,new TestCase(cur.name(),m,cur.sensorExpected())); initWidgets();
+        editableCases.set(caseIdx,new TestCase(cur.name(),m,cur.sensorExpected())); initWidgets(); autoSave();
     }
     private void toggleSensor(int caseIdx, BlockPos p) {
         commitCurrentName(); TestCase cur=editableCases.get(caseIdx);
         Map<BlockPos,Boolean> m=new LinkedHashMap<>(cur.sensorExpected()); m.put(p,!m.getOrDefault(p,false));
-        editableCases.set(caseIdx,new TestCase(cur.name(),cur.injectorValues(),m)); initWidgets();
+        editableCases.set(caseIdx,new TestCase(cur.name(),cur.injectorValues(),m)); initWidgets(); autoSave();
     }
 
     // ── Widgets fixes ─────────────────────────────────────────────────────────
@@ -157,11 +157,18 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         int gx=(width-backgroundWidth)/2, gy=(height-backgroundHeight)/2;
         if (editableCases.isEmpty()) return;
 
-        // Champ nom
+        // Champ nom — autosave à chaque frappe
         caseNameField = addDrawableChild(new TextFieldWidget(
                 textRenderer, gx+IX, gy+5, 110, 14, Text.literal("Nom")));
         caseNameField.setText(editableCases.get(selectedCase).name());
         caseNameField.setMaxLength(32);
+        caseNameField.setChangedListener(text -> {
+            if (!editableCases.isEmpty()) {
+                TestCase cur = editableCases.get(selectedCase);
+                editableCases.set(selectedCase, new TestCase(text, cur.injectorValues(), cur.sensorExpected()));
+                autoSave();
+            }
+        });
 
         // Boutons du bas
         int btnY = gy + backgroundHeight - 22;
@@ -169,7 +176,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
                 .dimensions(gx+5, btnY, 65, 18).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("▶ Lancer"), b -> runTests())
                 .dimensions(gx+backgroundWidth-150, btnY, 70, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Sauvegarder"), b -> save())
+        addDrawableChild(ButtonWidget.builder(Text.literal("Réinitialiser"), b -> clearPreview())
                 .dimensions(gx+backgroundWidth-75, btnY, 70, 18).build());
 
         applyPreview(editableCases.get(selectedCase));
@@ -322,12 +329,12 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
             if (mx>=ix+12 &&mx<ix+24) { moveCaseDown(i);  return true; }
             if (mx>=ix+24 &&mx<ix+36) { deleteCase(i);    return true; }
             if (mx>=ix+36 &&mx<ix+48) { runSingleTest(i); return true; }
-            commitCurrentName(); selectedCase=i; initWidgets(); return true;
+            commitCurrentName(); selectedCase=i; initWidgets(); autoSave(); return true;
         }
         int addY = by+editableCases.size()*ROW_H-scrollCase;
         if (my>=addY&&my<addY+ROW_H) {
             commitCurrentName(); addNewCase(); selectedCase=editableCases.size()-1;
-            scrollCase=maxScrollCase(); initWidgets(); return true;
+            scrollCase=maxScrollCase(); initWidgets(); autoSave(); return true;
         }
         return false;
     }
@@ -400,27 +407,24 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
 
     // ── Réseau ────────────────────────────────────────────────────────────────
 
-    private void save() {
-        commitCurrentName();
-        ClientPlayNetworking.send(new SaveTestCasesPacket(handler.bench,editableCases,injectors,sensors,selectedCase));
-        close();
+    /** Envoie l'état courant au serveur sans fermer l'écran. */
+    private void autoSave() {
+        ClientPlayNetworking.send(new SaveTestCasesPacket(handler.bench, editableCases, injectors, sensors, selectedCase));
     }
+
     private void scan() { ClientPlayNetworking.send(new ScanBenchPacket(handler.bench)); }
+
     private void runTests() {
         commitCurrentName();
-        ClientPlayNetworking.send(new SaveTestCasesPacket(handler.bench,editableCases,injectors,sensors,selectedCase));
+        autoSave();
         ClientPlayNetworking.send(new RunTestsPacket(handler.bench));
-        Collections.fill(caseResults,null); initWidgets();
-
-        clearPreview();
+        Collections.fill(caseResults, null); initWidgets();
     }
     private void runSingleTest(int caseIdx) {
         commitCurrentName();
-        ClientPlayNetworking.send(new SaveTestCasesPacket(handler.bench,editableCases,injectors,sensors,selectedCase));
-        ClientPlayNetworking.send(new RunSingleTestPacket(handler.bench,caseIdx));
-        if (caseIdx<caseResults.size()) caseResults.set(caseIdx,null); initWidgets();
-
-        clearPreview();
+        autoSave();
+        ClientPlayNetworking.send(new RunSingleTestPacket(handler.bench, caseIdx));
+        if (caseIdx < caseResults.size()) caseResults.set(caseIdx, null); initWidgets();
     }
 
     public void onScanReceived(List<BlockPos> newInj,Map<BlockPos,String> newInjNames,
@@ -458,10 +462,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         for (BlockPos p:injectors) { var s=world.getBlockState(p); if (s.isOf(ModBlocks.INJECTOR)) world.setBlockState(p,s.with(InjectorBlock.POWERED,false),2); }
         for (BlockPos p:sensors)   { var s=world.getBlockState(p); if (s.isOf(ModBlocks.SENSOR))   world.setBlockState(p,s.with(SensorBlock.EXPECTED,false),2); }
     }
-    @Override public void removed() {
-        //clearPreview();
-        super.removed();
-    }
+    @Override public void removed() { super.removed(); }
     @Override protected void drawBackground(DrawContext ctx, float delta, int mx, int my) {}
     @Override protected void drawForeground(DrawContext ctx, int mx, int my) {} // bloque "Inventory" de HandledScreen
     @Override public boolean shouldPause() { return false; }
