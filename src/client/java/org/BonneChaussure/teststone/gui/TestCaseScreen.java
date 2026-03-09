@@ -463,5 +463,6 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
         super.removed();
     }
     @Override protected void drawBackground(DrawContext ctx, float delta, int mx, int my) {}
+    @Override protected void drawForeground(DrawContext ctx, int mx, int my) {} // bloque "Inventory" de HandledScreen
     @Override public boolean shouldPause() { return false; }
 }
