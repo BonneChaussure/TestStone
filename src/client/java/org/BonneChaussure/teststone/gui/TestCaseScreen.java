@@ -190,9 +190,6 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
 
     @Override
     public void render(DrawContext ctx, int mx, int my, float delta) {
-        // Réapplique le preview à chaque frame — corrige le cas où un clic droit
-        // sur un bloc (ex: RenameBlockScreen) remet son état visuel à zéro
-        if (!editableCases.isEmpty()) applyPreview(editableCases.get(selectedCase));
         int gx=(width-backgroundWidth)/2, gy=(height-backgroundHeight)/2;
         ctx.fill(gx, gy, gx+backgroundWidth, gy+backgroundHeight, 0xCC1A1A1A);
 
