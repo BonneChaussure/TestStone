@@ -262,17 +262,7 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         savedStructure.place(serverWorld, structureOrigin, structureOrigin, placement,
                 serverWorld.getRandom(), 2);
 
-        // ── 3. Force le recalcul redstone ─────────────────────────────────────
-        for (int x = minX; x <= maxX; x++)
-            for (int y = minY; y <= maxY; y++)
-                for (int z = minZ; z <= maxZ; z++) {
-                    BlockPos p = new BlockPos(x, y, z);
-                    serverWorld.updateNeighborsAlways(p, serverWorld.getBlockState(p).getBlock());
-                }
-
-        // ── 4. Vide les ticks schedulés APRÈS le recalcul ─────────────────────
-        // Le neighborUpdate recrée des ticks pour les répéteurs — on les annule
-        // tous ici pour repartir d'un état vraiment silencieux.
+        // ── 3. Vide les ticks schedulés ─────────────────────
         serverWorld.getBlockTickScheduler().clearNextTicks(region);
         serverWorld.getFluidTickScheduler().clearNextTicks(region);
 
