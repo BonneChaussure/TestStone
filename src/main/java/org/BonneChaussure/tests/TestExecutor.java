@@ -19,10 +19,9 @@ import java.util.Map;
  */
 public class TestExecutor {
 
-    public enum Phase { RESET, WAITING_RESET, INJECT, OBSERVE, DONE }
+    public enum Phase { RESTORE, INJECT, OBSERVE}
 
-    public static final int MAX_TICKS    = 40;
-    public static final int RESET_TICKS  = 20;
+    public static final int MAX_TICKS    = 100;
     public static final int MIN_OBSERVE_TICKS = 10;
 
     private final TestBenchBlockEntity be;
@@ -35,7 +34,7 @@ public class TestExecutor {
     private final int indexOffset;
 
     private int currentCase  = 0;
-    private Phase phase      = Phase.RESET;
+    private Phase phase      = Phase.RESTORE;
     private int tickCounter  = 0;
     private final Boolean[] results;
 
@@ -55,6 +54,7 @@ public class TestExecutor {
 
     public boolean tick() {
         if (currentCase >= cases.size()) {
+            be.restoreStructure(world);
             resetAllInjectors();
             sendToAll(Text.literal("━━━━━━━━━━━━━━━━━━━━━━━━━━━━").formatted(Formatting.DARK_GRAY));
             sendSummary();
@@ -66,23 +66,15 @@ public class TestExecutor {
 
         switch (phase) {
 
-            case RESET -> {
-                resetAllInjectors();
-                phase = Phase.WAITING_RESET;
+            case RESTORE -> {
+                be.restoreStructure(world);
+                // Annonce le cas en cours
+                sendToAll(Text.literal("━━━━━━━━━━━━━━━━━━━━━━━━━━━━").formatted(Formatting.DARK_GRAY));
+                sendToAll(Text.literal("▶ Running : ")
+                        .formatted(Formatting.GRAY)
+                        .append(Text.literal(tc.name()).formatted(Formatting.WHITE, Formatting.BOLD)));
+                phase = Phase.INJECT;
                 tickCounter = 0;
-            }
-
-            case WAITING_RESET -> {
-                tickCounter++;
-                if (tickCounter >= RESET_TICKS) {
-                    // Annonce le cas en cours
-                    sendToAll(Text.literal("━━━━━━━━━━━━━━━━━━━━━━━━━━━━").formatted(Formatting.DARK_GRAY));
-                    sendToAll(Text.literal("▶ Running : ")
-                            .formatted(Formatting.GRAY)
-                            .append(Text.literal(tc.name()).formatted(Formatting.WHITE, Formatting.BOLD)));
-                    phase = Phase.INJECT;
-                    tickCounter = 0;
-                }
             }
 
             case INJECT -> {
@@ -109,8 +101,6 @@ public class TestExecutor {
                     nextCase();
                 }
             }
-
-            case DONE -> { return false; }
         }
 
         return true;
@@ -120,7 +110,7 @@ public class TestExecutor {
         // On transmet l'index réel dans la liste complète (currentCase + indexOffset)
         be.onCaseResult(currentCase + indexOffset, results[currentCase]);
         currentCase++;
-        phase = Phase.RESET;
+        phase = Phase.RESTORE;
         tickCounter = 0;
     }
 

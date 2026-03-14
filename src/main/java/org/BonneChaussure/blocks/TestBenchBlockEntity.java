@@ -14,9 +14,14 @@ import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.structure.StructurePlacementData;
+import net.minecraft.structure.StructureTemplate;
 import net.minecraft.text.Text;
+import net.minecraft.util.BlockMirror;
+import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3i;
 import org.BonneChaussure.gui.TestBenchScreenHandler;
 import org.BonneChaussure.tests.TestCase;
 import org.BonneChaussure.tests.TestExecutor;
@@ -39,6 +44,10 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     // Coins stockés en NBT — null tant que le bloc n'est pas posé
     private BlockPos corner1 = null;
     private BlockPos corner2 = null;
+
+    private static final boolean CAPTURE_ENTITIES = true;
+    private StructureTemplate savedStructure = null;
+    private BlockPos structureOrigin = null;
 
     private List<BlockPos> scannedInjectors = new ArrayList<>();
     private List<BlockPos> scannedSensors   = new ArrayList<>();
@@ -165,6 +174,7 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     // ── Lance l'exécution ─────────────────────────────────────────────────────
     public void startTests(ServerWorld serverWorld) {
         if (testCases.isEmpty()) return;
+        captureStructure(serverWorld);
         testState = TestState.RUNNING;
         executor = new TestExecutor(this, serverWorld, testCases);
         markDirty();
@@ -173,6 +183,7 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     // ── Lance un seul cas ─────────────────────────────────────────────────────
     public void startSingleTest(ServerWorld serverWorld, int caseIndex) {
         if (testCases.isEmpty() || caseIndex < 0 || caseIndex >= testCases.size()) return;
+        captureStructure(serverWorld);
         testState = TestState.RUNNING;
         executor = new TestExecutor(this, serverWorld,
                 List.of(testCases.get(caseIndex)), caseIndex);
@@ -189,12 +200,84 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         this.lastResults = results;
         this.testState = TestState.DONE;
         this.executor = null;
+        this.savedStructure = null;
+        this.structureOrigin = null;
         markDirty();
         TestBenchBlock.sendAllResults((ServerWorld) world, this, results);
     }
 
     public TestState getTestState()   { return testState; }
     public Boolean[] getLastResults() { return lastResults; }
+
+    public void captureStructure(ServerWorld serverWorld) {
+        if (!hasBoundaryBox()) return;
+
+        int minX = Math.min(corner1.getX(), corner2.getX());
+        int minY = Math.min(corner1.getY(), corner2.getY());
+        int minZ = Math.min(corner1.getZ(), corner2.getZ());
+        int maxX = Math.max(corner1.getX(), corner2.getX());
+        int maxY = Math.max(corner1.getY(), corner2.getY());
+        int maxZ = Math.max(corner1.getZ(), corner2.getZ());
+
+        structureOrigin = new BlockPos(minX, minY, minZ);
+        Vec3i size = new Vec3i(maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1);
+
+        savedStructure = new StructureTemplate();
+        // null = aucun bloc à ignorer ; CAPTURE_ENTITIES contrôle la capture des entités
+        savedStructure.saveFromWorld(serverWorld, structureOrigin, size, CAPTURE_ENTITIES, null);
+    }
+
+    public boolean restoreStructure(ServerWorld serverWorld) {
+        if (savedStructure == null || structureOrigin == null) return false;
+
+        int minX = Math.min(corner1.getX(), corner2.getX());
+        int minY = Math.min(corner1.getY(), corner2.getY());
+        int minZ = Math.min(corner1.getZ(), corner2.getZ());
+        int maxX = Math.max(corner1.getX(), corner2.getX());
+        int maxY = Math.max(corner1.getY(), corner2.getY());
+        int maxZ = Math.max(corner1.getZ(), corner2.getZ());
+
+        net.minecraft.util.math.BlockBox region = new net.minecraft.util.math.BlockBox(
+                minX, minY, minZ, maxX, maxY, maxZ);
+
+        // ── 1. Discard des entités ────────────────────────────────────────────
+        if (CAPTURE_ENTITIES) {
+            net.minecraft.util.math.Box box = new net.minecraft.util.math.Box(
+                    minX, minY, minZ, maxX + 1, maxY + 1, maxZ + 1);
+            serverWorld.getEntitiesByClass(
+                    net.minecraft.entity.Entity.class, box,
+                    e -> !(e instanceof net.minecraft.entity.player.PlayerEntity)
+            ).forEach(net.minecraft.entity.Entity::discard);
+            serverWorld.getEntitiesByClass(
+                    net.minecraft.entity.ItemEntity.class, box, e -> true
+            ).forEach(net.minecraft.entity.Entity::discard);
+        }
+
+        // ── 2. Restaure les blocs ─────────────────────────────────────────────
+        StructurePlacementData placement = new StructurePlacementData()
+                .setMirror(BlockMirror.NONE)
+                .setRotation(BlockRotation.NONE)
+                .setIgnoreEntities(!CAPTURE_ENTITIES);
+
+        savedStructure.place(serverWorld, structureOrigin, structureOrigin, placement,
+                serverWorld.getRandom(), 2);
+
+        // ── 3. Force le recalcul redstone ─────────────────────────────────────
+        for (int x = minX; x <= maxX; x++)
+            for (int y = minY; y <= maxY; y++)
+                for (int z = minZ; z <= maxZ; z++) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    serverWorld.updateNeighborsAlways(p, serverWorld.getBlockState(p).getBlock());
+                }
+
+        // ── 4. Vide les ticks schedulés APRÈS le recalcul ─────────────────────
+        // Le neighborUpdate recrée des ticks pour les répéteurs — on les annule
+        // tous ici pour repartir d'un état vraiment silencieux.
+        serverWorld.getBlockTickScheduler().clearNextTicks(region);
+        serverWorld.getFluidTickScheduler().clearNextTicks(region);
+
+        return true;
+    }
 
     // ── Sérialisation NBT ──────────────────────────────────────────────────────
 
