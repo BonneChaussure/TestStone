@@ -11,8 +11,13 @@ import net.minecraft.util.math.BlockPos;
 import org.BonneChaussure.blocks.TestBenchBlock;
 import org.BonneChaussure.blocks.TestBenchBlockEntity;
 
-public record UpdateBenchPacket(BlockPos bench, int sizeX, int sizeY, int sizeZ, int color)
-        implements CustomPayload {
+public record UpdateBenchPacket(
+        BlockPos bench,
+        int sizeX, int sizeY, int sizeZ,
+        int color,
+        int rotation,
+        boolean captureEntities
+) implements CustomPayload {
 
     public static final CustomPayload.Id<UpdateBenchPacket> ID =
             new CustomPayload.Id<>(Identifier.of("teststone", "update_bench"));
@@ -24,11 +29,15 @@ public record UpdateBenchPacket(BlockPos bench, int sizeX, int sizeY, int sizeZ,
                 buf.writeInt(packet.sizeY());
                 buf.writeInt(packet.sizeZ());
                 buf.writeInt(packet.color());
+                buf.writeInt(packet.rotation());
+                buf.writeBoolean(packet.captureEntities());
             },
             buf -> new UpdateBenchPacket(
                     buf.readBlockPos(),
                     buf.readInt(), buf.readInt(), buf.readInt(),
-                    buf.readInt()
+                    buf.readInt(),
+                    buf.readInt(),
+                    buf.readBoolean()
             )
     );
 
@@ -44,6 +53,9 @@ public record UpdateBenchPacket(BlockPos bench, int sizeX, int sizeY, int sizeZ,
                 if (world.getBlockEntity(payload.bench()) instanceof TestBenchBlockEntity be) {
                     be.setBoundaryBoxSize(payload.sizeX(), payload.sizeY(), payload.sizeZ());
                     be.setColor(payload.color());
+                    be.setRotation(payload.rotation());
+                    be.initBoundaryBox();
+                    be.setCaptureEntities(payload.captureEntities());
                     TestBenchBlock.sendBoxToAll(world, be);
                 }
             });

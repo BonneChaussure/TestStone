@@ -22,17 +22,20 @@ import java.util.Map;
 
 public class TestBenchScreenHandler extends ScreenHandler {
 
-    // Record qui transite du serveur → client à l'ouverture
-    public record SyncData(BlockPos pos, int sizeX, int sizeY, int sizeZ, int color,
-                           List<BlockPos> injectors, Map<BlockPos, String> injectorNames,
-                           List<BlockPos> sensors,   Map<BlockPos, String> sensorNames,
-                           List<TestCase> testCases, int selectedCaseIndex) {
+    public record SyncData(
+            BlockPos pos, int sizeX, int sizeY, int sizeZ, int color,
+            int rotation, boolean captureEntities,
+            List<BlockPos> injectors, Map<BlockPos, String> injectorNames,
+            List<BlockPos> sensors,   Map<BlockPos, String> sensorNames,
+            List<TestCase> testCases, int selectedCaseIndex) {
 
         public static final PacketCodec<RegistryByteBuf, SyncData> CODEC = PacketCodec.of(
                 (data, buf) -> {
                     buf.writeBlockPos(data.pos());
                     buf.writeInt(data.sizeX()); buf.writeInt(data.sizeY()); buf.writeInt(data.sizeZ());
                     buf.writeInt(data.color());
+                    buf.writeInt(data.rotation());
+                    buf.writeBoolean(data.captureEntities());
                     buf.writeInt(data.injectors().size());
                     data.injectors().forEach(buf::writeBlockPos);
                     buf.writeInt(data.injectorNames().size());
@@ -49,6 +52,8 @@ public class TestBenchScreenHandler extends ScreenHandler {
                     BlockPos pos = buf.readBlockPos();
                     int sx = buf.readInt(), sy = buf.readInt(), sz = buf.readInt();
                     int color = buf.readInt();
+                    int rotation = buf.readInt();
+                    boolean captureEntities = buf.readBoolean();
                     int injCount = buf.readInt();
                     List<BlockPos> inj = new ArrayList<>();
                     for (int i = 0; i < injCount; i++) inj.add(buf.readBlockPos());
@@ -65,7 +70,8 @@ public class TestBenchScreenHandler extends ScreenHandler {
                     List<TestCase> cases = new ArrayList<>();
                     for (int i = 0; i < caseCount; i++) cases.add(TestCase.fromNbt((NbtCompound) buf.readNbt()));
                     int selectedCaseIndex = buf.readInt();
-                    return new SyncData(pos, sx, sy, sz, color, inj, injNames, sen, senNames, cases, selectedCaseIndex);
+                    return new SyncData(pos, sx, sy, sz, color, rotation, captureEntities,
+                            inj, injNames, sen, senNames, cases, selectedCaseIndex);
                 }
         );
     }
@@ -79,6 +85,8 @@ public class TestBenchScreenHandler extends ScreenHandler {
     public final BlockPos benchPos;
     public final int sizeX, sizeY, sizeZ, color;
     public final int selectedCaseIndex;
+    public final int rotation;
+    public final boolean captureEntities;
     public List<TestCase> testCases;
     public List<BlockPos> injectors;
     public Map<BlockPos, String> injectorNames;
@@ -87,17 +95,23 @@ public class TestBenchScreenHandler extends ScreenHandler {
 
     // Constructeur serveur
     public TestBenchScreenHandler(int syncId, PlayerInventory inv, BlockPos pos,
-                                  int sizeX, int sizeY, int sizeZ, int color) {
+                                  int sizeX, int sizeY, int sizeZ, int color,
+                                  int rotation, boolean captureEntities) {
         super(TYPE, syncId);
-        this.benchPos      = pos;
+        this.benchPos        = pos;
         this.sizeX = sizeX; this.sizeY = sizeY; this.sizeZ = sizeZ;
-        this.color         = color;
+        this.color           = color;
+        this.rotation        = rotation;
+        this.captureEntities = captureEntities;
         this.selectedCaseIndex = 0;
-        this.injectorNames = new LinkedHashMap<>();
-        this.sensorNames   = new LinkedHashMap<>();
+        this.injectors       = new ArrayList<>();
+        this.injectorNames   = new LinkedHashMap<>();
+        this.sensors         = new ArrayList<>();
+        this.sensorNames     = new LinkedHashMap<>();
+        this.testCases       = new ArrayList<>();
     }
 
-    // Constructeur client — reçoit les vraies données du BE via SyncData
+    // Constructeur client
     public TestBenchScreenHandler(int syncId, PlayerInventory inv, SyncData data) {
         super(TYPE, syncId);
         this.benchPos          = data.pos();
@@ -105,6 +119,8 @@ public class TestBenchScreenHandler extends ScreenHandler {
         this.sizeY             = data.sizeY();
         this.sizeZ             = data.sizeZ();
         this.color             = data.color();
+        this.rotation          = data.rotation();
+        this.captureEntities   = data.captureEntities();
         this.injectors         = data.injectors();
         this.injectorNames     = data.injectorNames();
         this.sensors           = data.sensors();
@@ -113,11 +129,6 @@ public class TestBenchScreenHandler extends ScreenHandler {
         this.selectedCaseIndex = data.selectedCaseIndex();
     }
 
-    @Override
-    public ItemStack quickMove(PlayerEntity player, int slot) {
-        return null;
-    }
-
-    @Override
-    public boolean canUse(PlayerEntity player) { return true; }
+    @Override public ItemStack quickMove(PlayerEntity player, int slot) { return null; }
+    @Override public boolean canUse(PlayerEntity player) { return true; }
 }
