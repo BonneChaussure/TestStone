@@ -22,14 +22,27 @@ import java.util.Map;
 
 public class TestCaseScreenHandler extends ScreenHandler {
 
-    public record SyncData(BlockPos bench,
-                           List<BlockPos> injectors, Map<BlockPos, String> injectorNames,
-                           List<BlockPos> sensors,   Map<BlockPos, String> sensorNames,
-                           List<TestCase> cases, int selectedCaseIndex) {
+    /**
+     * SyncData embarque également les paramètres du TestBench (sizeX/Y/Z, color,
+     * rotation, captureEntities) pour que TestCaseScreen puisse ouvrir
+     * TestBenchScreen sans aller recontacter le serveur.
+     */
+    public record SyncData(
+            BlockPos bench,
+            // Paramètres bench — transmis pour permettre l'ouverture de TestBenchScreen
+            int sizeX, int sizeY, int sizeZ, int color, int rotation, boolean captureEntities,
+            // Blocs scannés et cas de test
+            List<BlockPos> injectors, Map<BlockPos, String> injectorNames,
+            List<BlockPos> sensors,   Map<BlockPos, String> sensorNames,
+            List<TestCase> cases, int selectedCaseIndex) {
 
         public static final PacketCodec<RegistryByteBuf, SyncData> CODEC = PacketCodec.of(
                 (data, buf) -> {
                     buf.writeBlockPos(data.bench());
+                    buf.writeInt(data.sizeX()); buf.writeInt(data.sizeY()); buf.writeInt(data.sizeZ());
+                    buf.writeInt(data.color());
+                    buf.writeInt(data.rotation());
+                    buf.writeBoolean(data.captureEntities());
                     buf.writeInt(data.injectors().size());
                     data.injectors().forEach(buf::writeBlockPos);
                     buf.writeInt(data.injectorNames().size());
@@ -44,6 +57,10 @@ public class TestCaseScreenHandler extends ScreenHandler {
                 },
                 buf -> {
                     BlockPos bench = buf.readBlockPos();
+                    int sx = buf.readInt(), sy = buf.readInt(), sz = buf.readInt();
+                    int color = buf.readInt();
+                    int rotation = buf.readInt();
+                    boolean captureEntities = buf.readBoolean();
                     int injCount = buf.readInt();
                     List<BlockPos> inj = new ArrayList<>();
                     for (int i = 0; i < injCount; i++) inj.add(buf.readBlockPos());
@@ -60,7 +77,8 @@ public class TestCaseScreenHandler extends ScreenHandler {
                     List<TestCase> cases = new ArrayList<>();
                     for (int i = 0; i < caseCount; i++) cases.add(TestCase.fromNbt((NbtCompound) buf.readNbt()));
                     int selectedCaseIndex = buf.readInt();
-                    return new SyncData(bench, inj, injNames, sen, senNames, cases, selectedCaseIndex);
+                    return new SyncData(bench, sx, sy, sz, color, rotation, captureEntities,
+                            inj, injNames, sen, senNames, cases, selectedCaseIndex);
                 }
         );
     }
@@ -72,6 +90,8 @@ public class TestCaseScreenHandler extends ScreenHandler {
     );
 
     public final BlockPos bench;
+    public final int sizeX, sizeY, sizeZ, color, rotation;
+    public final boolean captureEntities;
     public final List<BlockPos> injectors;
     public final Map<BlockPos, String> injectorNames;
     public final List<BlockPos> sensors;
@@ -82,6 +102,12 @@ public class TestCaseScreenHandler extends ScreenHandler {
     public TestCaseScreenHandler(int syncId, PlayerInventory inv, SyncData data) {
         super(TYPE, syncId);
         this.bench             = data.bench();
+        this.sizeX             = data.sizeX();
+        this.sizeY             = data.sizeY();
+        this.sizeZ             = data.sizeZ();
+        this.color             = data.color();
+        this.rotation          = data.rotation();
+        this.captureEntities   = data.captureEntities();
         this.injectors         = data.injectors();
         this.injectorNames     = data.injectorNames();
         this.sensors           = data.sensors();

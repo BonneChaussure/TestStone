@@ -14,8 +14,8 @@ import org.BonneChaussure.network.UpdateBenchPacket;
 public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
 
     private static final int W           = 220;
-    private static final int H           = 230;
-    private static final int ROW_H       = 24;
+    private static final int H           = 210;
+    private static final int ROW_H       = 24;   // hauteur d'une ligne de paramètre
     private static final int LABEL_COLOR = 0xAAAAAA;
     private static final int VAL_COLOR   = 0xFFFFFF;
     private static final int ERR_COLOR   = 0xFF4444;
@@ -87,10 +87,12 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
                 b -> { captureEntities = !captureEntities; autoSave(); clearChildren(); init(); }
         ).dimensions(gx + 8, row5, W - 16, 18).build());
 
-        int btnY = gy + H - 26;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Test cases ->"), b -> openTestCases())
-                .dimensions(gx + W / 2 - 55, btnY, 110, 20).build());
+        // Bouton retour ← — haut à droite
+        addDrawableChild(ButtonWidget.builder(Text.literal("←"), b -> openTestCases())
+                .dimensions(gx + W - 20, gy + 4, 18, 14).build());
     }
+
+    // ── Construit une ligne label + valeur + boutons -/+ ─────────────────────
 
     private interface IntGetter { int get(); }
     private interface IntSetter { void set(int v); }
@@ -109,34 +111,53 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
         TextFieldWidget field = addDrawableChild(new TextFieldWidget(
                 textRenderer, fieldX, ry, fieldW, 16, Text.literal(label)));
         field.setText(String.valueOf(getter.get()));
-        field.setEditable(false);
+        field.setEditable(true);
         field.setEditableColor(VAL_COLOR);
+        field.setChangedListener(text -> {
+            try {
+                int v = Integer.parseInt(text.trim());
+                if (v >= MIN_SIZE && v <= MAX_SIZE) {
+                    field.setEditableColor(VAL_COLOR);
+                    setter.set(v);
+                    autoSave();
+                } else {
+                    field.setEditableColor(ERR_COLOR);
+                }
+            } catch (NumberFormatException e) {
+                field.setEditableColor(ERR_COLOR);
+            }
+        });
 
+        // Bouton +
         addDrawableChild(ButtonWidget.builder(Text.literal("+"), b -> {
             setter.set(Math.min(MAX_SIZE, getter.get() + 1));
             clearChildren(); init();
         }).dimensions(fieldX + fieldW + gap, ry, btnW, 16).build());
     }
 
+    // ── Sauvegarde automatique ────────────────────────────────────────────────
+
     private void autoSave() {
         ClientPlayNetworking.send(new UpdateBenchPacket(
                 handler.benchPos, sizeX, sizeY, sizeZ, color, rotation, captureEntities));
     }
+
+    // ── Ouvre l'écran des cas de test ─────────────────────────────────────────
 
     private void openTestCases() {
         assert client != null && client.player != null;
         var h = new TestCaseScreenHandler(0, client.player.getInventory(),
                 new TestCaseScreenHandler.SyncData(
                         handler.benchPos,
-                        handler.injectors,
-                        handler.injectorNames,
-                        handler.sensors,
-                        handler.sensorNames,
-                        handler.testCases,
-                        handler.selectedCaseIndex
+                        sizeX, sizeY, sizeZ, color, rotation, captureEntities,
+                        handler.injectors, handler.injectorNames,
+                        handler.sensors, handler.sensorNames,
+                        handler.testCases, handler.selectedCaseIndex
                 ));
         client.setScreen(new TestCaseScreen(h, client.player.getInventory(), Text.literal("")));
     }
+
+    // ── Rendu ─────────────────────────────────────────────────────────────────
 
     @Override
     public void renderBackground(DrawContext ctx, int mx, int my, float delta) {}
@@ -146,7 +167,9 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
         int gx = (width  - W) / 2;
         int gy = (height - H) / 2;
 
+        // Fond sombre — même style que TestCaseScreen
         ctx.fill(gx, gy, gx + W, gy + H, 0xCC1A1A1A);
+        // Bordure fine
         ctx.fill(gx - 1, gy - 1, gx + W + 1, gy,         0xFF555555);
         ctx.fill(gx - 1, gy + H, gx + W + 1, gy + H + 1, 0xFF555555);
         ctx.fill(gx - 1, gy,     gx,          gy + H,     0xFF555555);
@@ -154,22 +177,19 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
 
         super.render(ctx, mx, my, delta);
 
+        // Titre
         ctx.drawText(textRenderer, "TestBench Settings", gx + 8, gy + 10, LABEL_COLOR, false);
 
+        // Labels des lignes
         int row0 = gy + 30;
-        int row1 = row0 + ROW_H + 4;
-        int row2 = row1 + ROW_H + 4;
-        int row3 = row2 + ROW_H + 10;
-        int row4 = row3 + ROW_H + 10;
-        int row5 = row4 + ROW_H + 4;
+        int row1 = row0 + ROW_H + 6;
+        int row2 = row1 + ROW_H + 6;
+        int row3 = row2 + ROW_H + 12;
 
-        ctx.drawText(textRenderer, "Size X :",      gx + 8, row0 + 4, LABEL_COLOR, false);
-        ctx.drawText(textRenderer, "Size Y :",      gx + 8, row1 + 4, LABEL_COLOR, false);
-        ctx.drawText(textRenderer, "Size Z :",      gx + 8, row2 + 4, LABEL_COLOR, false);
-        ctx.drawText(textRenderer, "Color (hex) :", gx + 8, row3 + 4, LABEL_COLOR, false);
-
-        ctx.fill(gx + 4, row4 - 5, gx + W - 4, row4 - 4, 0xFF444444);
-        ctx.fill(gx + 4, row5 - 2, gx + W - 4, row5 - 1, 0xFF333333);
+        ctx.drawText(textRenderer, "Size X :", gx + 8, row0 + 2, LABEL_COLOR, false);
+        ctx.drawText(textRenderer, "Size Y :", gx + 8, row1 + 2, LABEL_COLOR, false);
+        ctx.drawText(textRenderer, "Size Z :", gx + 8, row2 + 2, LABEL_COLOR, false);
+        ctx.drawText(textRenderer, "Color (hex) :", gx + 8, row3, LABEL_COLOR, false);
     }
 
     @Override protected void drawBackground(DrawContext ctx, float delta, int mx, int my) {}

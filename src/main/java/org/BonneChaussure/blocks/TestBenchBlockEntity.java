@@ -23,6 +23,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
 import org.BonneChaussure.gui.TestBenchScreenHandler;
+import org.BonneChaussure.gui.TestCaseScreenHandler;
 import org.BonneChaussure.tests.TestCase;
 import org.BonneChaussure.tests.TestExecutor;
 
@@ -31,7 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenHandlerFactory<TestBenchScreenHandler.SyncData> {
+public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenHandlerFactory<TestCaseScreenHandler.SyncData> {
 
     private int color = 0xFF0000;
     public static final int DEFAULT_SIZE = 5;
@@ -165,11 +166,30 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
 
     @Override
     public ScreenHandler createMenu(int syncId, PlayerInventory inv, PlayerEntity player) {
-        return new TestBenchScreenHandler(syncId, inv, pos, sizeX, sizeY, sizeZ, color, rotation, captureEntities);
+        return new TestCaseScreenHandler(syncId, inv, buildTestCaseSyncData());
     }
 
     @Override
-    public TestBenchScreenHandler.SyncData getScreenOpeningData(ServerPlayerEntity player) {
+    public TestCaseScreenHandler.SyncData getScreenOpeningData(ServerPlayerEntity player) {
+        return buildTestCaseSyncData();
+    }
+
+    /** Construit le SyncData complet pour ouvrir directement le TestCaseScreen. */
+    private TestCaseScreenHandler.SyncData buildTestCaseSyncData() {
+        return new TestCaseScreenHandler.SyncData(
+                pos,
+                sizeX, sizeY, sizeZ, color, rotation, captureEntities,
+                scannedInjectors, injectorNames,
+                scannedSensors, sensorNames,
+                testCases, selectedCaseIndex
+        );
+    }
+
+    /**
+     * Construit le SyncData pour ouvrir le TestBenchScreen (paramètres).
+     * Appelé côté client depuis TestCaseScreen via le bouton ⚙.
+     */
+    public TestBenchScreenHandler.SyncData buildBenchSyncData() {
         return new TestBenchScreenHandler.SyncData(
                 pos, sizeX, sizeY, sizeZ, color, rotation, captureEntities,
                 scannedInjectors, injectorNames,

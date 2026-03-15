@@ -13,6 +13,7 @@ import org.BonneChaussure.blocks.InjectorBlock;
 import org.BonneChaussure.blocks.ModBlocks;
 import org.BonneChaussure.blocks.SensorBlock;
 import org.BonneChaussure.gui.TestCaseScreenHandler;
+import org.BonneChaussure.gui.TestBenchScreenHandler;
 import org.BonneChaussure.network.RunSingleTestPacket;
 import org.BonneChaussure.network.RunTestsPacket;
 import org.BonneChaussure.network.SaveTestCasesPacket;
@@ -230,6 +231,10 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
                 .dimensions(gx+backgroundWidth-170, btnY, 80, 18).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Reset"), b -> clearPreview())
                 .dimensions(gx+backgroundWidth-75, btnY, 70, 18).build());
+
+        // Bouton paramètres ⚙ — haut à droite
+        addDrawableChild(ButtonWidget.builder(Text.literal("⚙"), b -> openSettings())
+                .dimensions(gx+backgroundWidth-20, gy+2, 18, 14).build());
 
         applyPreview(editableCases.get(selectedCase));
     }
@@ -543,6 +548,21 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
     private void autoSave() {
         ClientPlayNetworking.send(new SaveTestCasesPacket(handler.bench, editableCases, injectors, sensors, selectedCase));
     }
+    private void openSettings() {
+        assert client != null && client.player != null;
+        commitCurrentName(); autoSave();
+        var h = new TestBenchScreenHandler(0, client.player.getInventory(),
+                new TestBenchScreenHandler.SyncData(
+                        handler.bench,
+                        handler.sizeX, handler.sizeY, handler.sizeZ,
+                        handler.color, handler.rotation, handler.captureEntities,
+                        handler.injectors, handler.injectorNames,
+                        handler.sensors, handler.sensorNames,
+                        editableCases, selectedCase
+                ));
+        client.setScreen(new TestBenchScreen(h, client.player.getInventory(), Text.literal("")));
+    }
+
     private void scan() { ClientPlayNetworking.send(new ScanBenchPacket(handler.bench)); }
     private void runTests() {
         commitCurrentName(); autoSave();
