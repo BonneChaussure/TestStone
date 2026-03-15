@@ -16,7 +16,9 @@ public record UpdateBenchPacket(
         int sizeX, int sizeY, int sizeZ,
         int color,
         int rotation,
-        boolean captureEntities
+        boolean captureEntities,
+        int maxTicks,
+        int minObserveTicks
 ) implements CustomPayload {
 
     public static final CustomPayload.Id<UpdateBenchPacket> ID =
@@ -31,13 +33,17 @@ public record UpdateBenchPacket(
                 buf.writeInt(packet.color());
                 buf.writeInt(packet.rotation());
                 buf.writeBoolean(packet.captureEntities());
+                buf.writeInt(packet.maxTicks());
+                buf.writeInt(packet.minObserveTicks());
             },
             buf -> new UpdateBenchPacket(
                     buf.readBlockPos(),
                     buf.readInt(), buf.readInt(), buf.readInt(),
                     buf.readInt(),
                     buf.readInt(),
-                    buf.readBoolean()
+                    buf.readBoolean(),
+                    buf.readInt(),
+                    buf.readInt()
             )
     );
 
@@ -56,6 +62,8 @@ public record UpdateBenchPacket(
                     be.setRotation(payload.rotation());
                     be.initBoundaryBox();
                     be.setCaptureEntities(payload.captureEntities());
+                    be.setMaxTicks(payload.maxTicks());
+                    be.setMinObserveTicks(payload.minObserveTicks());
                     TestBenchBlock.sendBoxToAll(world, be);
                 }
             });

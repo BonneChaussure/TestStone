@@ -21,9 +21,6 @@ public class TestExecutor {
 
     public enum Phase { RESTORE, INJECT, OBSERVE}
 
-    public static final int MAX_TICKS    = 100;
-    public static final int MIN_OBSERVE_TICKS = 2;
-
     private final TestBenchBlockEntity be;
     private final ServerWorld world;
     private final List<TestCase> cases;
@@ -87,7 +84,7 @@ public class TestExecutor {
                 Map<BlockPos, Boolean> obs = tc.observations().get(currentObservation);
                 List<String> failures = getFailures(obs);
 
-                if (tickCounter >= MIN_OBSERVE_TICKS && failures.isEmpty()) {
+                if (tickCounter >= be.getMinObserveTicks() && failures.isEmpty()) {
                     // Observation courante validée
                     int totalObs = tc.observations().size();
                     if (totalObs > 1) {
@@ -106,7 +103,7 @@ public class TestExecutor {
                         sendToAll(Text.literal("✔ PASS").formatted(Formatting.GREEN, Formatting.BOLD));
                         nextCase();
                     }
-                } else if (tickCounter >= MAX_TICKS) {
+                } else if (tickCounter >= be.getMaxTicks()) {
                     // Timeout sur cette observation → cas FAIL
                     results[currentCase] = false;
                     int totalObs = tc.observations().size();

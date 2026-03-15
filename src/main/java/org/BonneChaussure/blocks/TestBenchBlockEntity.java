@@ -59,6 +59,10 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     // Champ d'instance pour permettre une configuration par TestBench.
     private boolean captureEntities = true;
 
+    // Paramètres d'exécution des tests — configurables par instance
+    private int maxTicks         = 60;
+    private int minObserveTicks  = 5;
+
     private StructureTemplate savedStructure = null;
     private BlockPos structureOrigin = null;
 
@@ -91,6 +95,11 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     // ── captureEntities ───────────────────────────────────────────────────────
     public boolean isCaptureEntities() { return captureEntities; }
     public void setCaptureEntities(boolean v) { this.captureEntities = v; markDirty(); }
+
+    public int getMaxTicks()        { return maxTicks; }
+    public int getMinObserveTicks() { return minObserveTicks; }
+    public void setMaxTicks(int v)        { this.maxTicks = Math.max(1, v); markDirty(); }
+    public void setMinObserveTicks(int v) { this.minObserveTicks = Math.max(1, v); markDirty(); }
 
     // ── Rotation ──────────────────────────────────────────────────────────────
     public int getRotation() { return rotation; }
@@ -179,6 +188,7 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         return new TestCaseScreenHandler.SyncData(
                 pos,
                 sizeX, sizeY, sizeZ, color, rotation, captureEntities,
+                maxTicks, minObserveTicks,
                 scannedInjectors, injectorNames,
                 scannedSensors, sensorNames,
                 testCases, selectedCaseIndex
@@ -192,6 +202,7 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
     public TestBenchScreenHandler.SyncData buildBenchSyncData() {
         return new TestBenchScreenHandler.SyncData(
                 pos, sizeX, sizeY, sizeZ, color, rotation, captureEntities,
+                maxTicks, minObserveTicks,
                 scannedInjectors, injectorNames,
                 scannedSensors, sensorNames,
                 testCases, selectedCaseIndex
@@ -313,6 +324,8 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         nbt.putInt("sizeX", sizeX); nbt.putInt("sizeY", sizeY); nbt.putInt("sizeZ", sizeZ);
         nbt.putInt("rotation", rotation);
         nbt.putBoolean("captureEntities", captureEntities);
+        nbt.putInt("maxTicks", maxTicks);
+        nbt.putInt("minObserveTicks", minObserveTicks);
         if (corner1 != null) { nbt.putLong("corner1", corner1.asLong()); nbt.putLong("corner2", corner2.asLong()); }
         nbt.putInt("color", color);
 
@@ -346,6 +359,8 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         if (nbt.contains("sizeZ")) sizeZ = nbt.getInt("sizeZ");
         if (nbt.contains("rotation")) rotation = nbt.getInt("rotation");
         if (nbt.contains("captureEntities")) captureEntities = nbt.getBoolean("captureEntities");
+        if (nbt.contains("maxTicks"))        maxTicks        = nbt.getInt("maxTicks");
+        if (nbt.contains("minObserveTicks")) minObserveTicks = nbt.getInt("minObserveTicks");
         if (nbt.contains("corner1")) {
             corner1 = BlockPos.fromLong(nbt.getLong("corner1"));
             corner2 = BlockPos.fromLong(nbt.getLong("corner2"));

@@ -14,7 +14,7 @@ import org.BonneChaussure.network.UpdateBenchPacket;
 public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
 
     private static final int W           = 220;
-    private static final int H           = 210;
+    private static final int H           = 268;
     private static final int ROW_H       = 24;   // hauteur d'une ligne de paramètre
     private static final int LABEL_COLOR = 0xAAAAAA;
     private static final int VAL_COLOR   = 0xFFFFFF;
@@ -31,6 +31,7 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
 
     private int sizeX, sizeY, sizeZ, color, rotation;
     private boolean captureEntities;
+    private int maxTicks, minObserveTicks;
 
     private TextFieldWidget fieldColor;
 
@@ -44,6 +45,8 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
         this.color           = handler.color;
         this.rotation        = handler.rotation;
         this.captureEntities = handler.captureEntities;
+        this.maxTicks        = handler.maxTicks;
+        this.minObserveTicks = handler.minObserveTicks;
     }
 
     @Override
@@ -56,8 +59,10 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
         int row1 = row0 + ROW_H + 4;
         int row2 = row1 + ROW_H + 4;
         int row3 = row2 + ROW_H + 10;
-        int row4 = row3 + ROW_H + 10;
-        int row5 = row4 + ROW_H + 4;
+        int row4 = row3 + ROW_H + 6;
+        int row5 = row4 + ROW_H + 6;
+        int row6 = row5 + ROW_H + 10;
+        int row7 = row6 + ROW_H + 4;
 
         addSizeRow(gx, row0, "Size X", () -> sizeX, v -> { sizeX = v; autoSave(); });
         addSizeRow(gx, row1, "Size Y", () -> sizeY, v -> { sizeY = v; autoSave(); });
@@ -77,15 +82,20 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
             }
         });
 
+        addIntRow(gx, row4, "Max ticks :", () -> maxTicks,
+                v -> { maxTicks = v; autoSave(); }, 1, 2000);
+        addIntRow(gx, row5, "Min observe :", () -> minObserveTicks,
+                v -> { minObserveTicks = v; autoSave(); }, 1, 200);
+
         addDrawableChild(ButtonWidget.builder(
                 Text.literal("Rotate: " + ROTATION_LABELS[rotation]),
                 b -> { rotation = (rotation + 1) % 4; autoSave(); clearChildren(); init(); }
-        ).dimensions(gx + 8, row4, W - 16, 18).build());
+        ).dimensions(gx + 8, row6, W - 16, 18).build());
 
         addDrawableChild(ButtonWidget.builder(
                 Text.literal("Entities: " + (captureEntities ? "ON" : "OFF")),
                 b -> { captureEntities = !captureEntities; autoSave(); clearChildren(); init(); }
-        ).dimensions(gx + 8, row5, W - 16, 18).build());
+        ).dimensions(gx + 8, row7, W - 16, 18).build());
 
         // Bouton retour ← — haut à droite
         addDrawableChild(ButtonWidget.builder(Text.literal("←"), b -> openTestCases())
@@ -135,11 +145,49 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
         }).dimensions(fieldX + fieldW + gap, ry, btnW, 16).build());
     }
 
-    // ── Sauvegarde automatique ────────────────────────────────────────────────
+    /** Ligne label + champ entier éditable avec min/max personnalisables. */
+    private void addIntRow(int gx, int ry, String label, IntGetter getter, IntSetter setter,
+                           int min, int max) {
+        int fieldX = gx + 110;
+        int fieldW = 44;
+        int btnW   = 20;
+        int gap    = 2;
+
+        addDrawableChild(ButtonWidget.builder(Text.literal("-"), b -> {
+            setter.set(Math.max(min, getter.get() - 1));
+            clearChildren(); init();
+        }).dimensions(fieldX - btnW - gap, ry, btnW, 16).build());
+
+        final TextFieldWidget field = addDrawableChild(new TextFieldWidget(
+                textRenderer, fieldX, ry, fieldW, 16, Text.literal(label)));
+        field.setText(String.valueOf(getter.get()));
+        field.setMaxLength(5);
+        field.setEditableColor(VAL_COLOR);
+        field.setChangedListener(text -> {
+            try {
+                int v = Integer.parseInt(text.trim());
+                if (v >= min && v <= max) {
+                    field.setEditableColor(VAL_COLOR);
+                    setter.set(v);
+                    autoSave();
+                } else {
+                    field.setEditableColor(ERR_COLOR);
+                }
+            } catch (NumberFormatException e) {
+                field.setEditableColor(ERR_COLOR);
+            }
+        });
+
+        addDrawableChild(ButtonWidget.builder(Text.literal("+"), b -> {
+            setter.set(Math.min(max, getter.get() + 1));
+            clearChildren(); init();
+        }).dimensions(fieldX + fieldW + gap, ry, btnW, 16).build());
+    }
 
     private void autoSave() {
         ClientPlayNetworking.send(new UpdateBenchPacket(
-                handler.benchPos, sizeX, sizeY, sizeZ, color, rotation, captureEntities));
+                handler.benchPos, sizeX, sizeY, sizeZ, color, rotation, captureEntities,
+                maxTicks, minObserveTicks));
     }
 
     // ── Ouvre l'écran des cas de test ─────────────────────────────────────────
@@ -150,6 +198,7 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
                 new TestCaseScreenHandler.SyncData(
                         handler.benchPos,
                         sizeX, sizeY, sizeZ, color, rotation, captureEntities,
+                        maxTicks, minObserveTicks,
                         handler.injectors, handler.injectorNames,
                         handler.sensors, handler.sensorNames,
                         handler.testCases, handler.selectedCaseIndex
@@ -182,14 +231,18 @@ public class TestBenchScreen extends HandledScreen<TestBenchScreenHandler> {
 
         // Labels des lignes
         int row0 = gy + 30;
-        int row1 = row0 + ROW_H + 6;
-        int row2 = row1 + ROW_H + 6;
-        int row3 = row2 + ROW_H + 12;
+        int row1 = row0 + ROW_H + 4;
+        int row2 = row1 + ROW_H + 4;
+        int row3 = row2 + ROW_H + 10;
+        int row4 = row3 + ROW_H + 6;
+        int row5 = row4 + ROW_H + 6;
 
-        ctx.drawText(textRenderer, "Size X :", gx + 8, row0 + 2, LABEL_COLOR, false);
-        ctx.drawText(textRenderer, "Size Y :", gx + 8, row1 + 2, LABEL_COLOR, false);
-        ctx.drawText(textRenderer, "Size Z :", gx + 8, row2 + 2, LABEL_COLOR, false);
-        ctx.drawText(textRenderer, "Color (hex) :", gx + 8, row3, LABEL_COLOR, false);
+        ctx.drawText(textRenderer, "Size X :",      gx + 8, row0 + 4, LABEL_COLOR, false);
+        ctx.drawText(textRenderer, "Size Y :",      gx + 8, row1 + 4, LABEL_COLOR, false);
+        ctx.drawText(textRenderer, "Size Z :",      gx + 8, row2 + 4, LABEL_COLOR, false);
+        ctx.drawText(textRenderer, "Color (hex) :", gx + 8, row3 + 4, LABEL_COLOR, false);
+        ctx.drawText(textRenderer, "Max ticks :",   gx + 8, row4 + 4, LABEL_COLOR, false);
+        ctx.drawText(textRenderer, "Min observe :", gx + 8, row5 + 4, LABEL_COLOR, false);
     }
 
     @Override protected void drawBackground(DrawContext ctx, float delta, int mx, int my) {}

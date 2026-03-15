@@ -25,6 +25,7 @@ public class TestBenchScreenHandler extends ScreenHandler {
     public record SyncData(
             BlockPos pos, int sizeX, int sizeY, int sizeZ, int color,
             int rotation, boolean captureEntities,
+            int maxTicks, int minObserveTicks,
             List<BlockPos> injectors, Map<BlockPos, String> injectorNames,
             List<BlockPos> sensors,   Map<BlockPos, String> sensorNames,
             List<TestCase> testCases, int selectedCaseIndex) {
@@ -36,6 +37,8 @@ public class TestBenchScreenHandler extends ScreenHandler {
                     buf.writeInt(data.color());
                     buf.writeInt(data.rotation());
                     buf.writeBoolean(data.captureEntities());
+                    buf.writeInt(data.maxTicks());
+                    buf.writeInt(data.minObserveTicks());
                     buf.writeInt(data.injectors().size());
                     data.injectors().forEach(buf::writeBlockPos);
                     buf.writeInt(data.injectorNames().size());
@@ -54,6 +57,8 @@ public class TestBenchScreenHandler extends ScreenHandler {
                     int color = buf.readInt();
                     int rotation = buf.readInt();
                     boolean captureEntities = buf.readBoolean();
+                    int maxTicks = buf.readInt();
+                    int minObserveTicks = buf.readInt();
                     int injCount = buf.readInt();
                     List<BlockPos> inj = new ArrayList<>();
                     for (int i = 0; i < injCount; i++) inj.add(buf.readBlockPos());
@@ -71,6 +76,7 @@ public class TestBenchScreenHandler extends ScreenHandler {
                     for (int i = 0; i < caseCount; i++) cases.add(TestCase.fromNbt((NbtCompound) buf.readNbt()));
                     int selectedCaseIndex = buf.readInt();
                     return new SyncData(pos, sx, sy, sz, color, rotation, captureEntities,
+                            maxTicks, minObserveTicks,
                             inj, injNames, sen, senNames, cases, selectedCaseIndex);
                 }
         );
@@ -87,6 +93,7 @@ public class TestBenchScreenHandler extends ScreenHandler {
     public final int selectedCaseIndex;
     public final int rotation;
     public final boolean captureEntities;
+    public final int maxTicks, minObserveTicks;
     public List<TestCase> testCases;
     public List<BlockPos> injectors;
     public Map<BlockPos, String> injectorNames;
@@ -103,6 +110,8 @@ public class TestBenchScreenHandler extends ScreenHandler {
         this.color           = color;
         this.rotation        = rotation;
         this.captureEntities = captureEntities;
+        this.maxTicks        = 100;
+        this.minObserveTicks = 2;
         this.selectedCaseIndex = 0;
         this.injectors       = new ArrayList<>();
         this.injectorNames   = new LinkedHashMap<>();
@@ -121,6 +130,8 @@ public class TestBenchScreenHandler extends ScreenHandler {
         this.color             = data.color();
         this.rotation          = data.rotation();
         this.captureEntities   = data.captureEntities();
+        this.maxTicks          = data.maxTicks();
+        this.minObserveTicks   = data.minObserveTicks();
         this.injectors         = data.injectors();
         this.injectorNames     = data.injectorNames();
         this.sensors           = data.sensors();

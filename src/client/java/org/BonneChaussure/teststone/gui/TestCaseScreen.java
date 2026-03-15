@@ -556,6 +556,7 @@ public class TestCaseScreen extends HandledScreen<TestCaseScreenHandler> {
                         handler.bench,
                         handler.sizeX, handler.sizeY, handler.sizeZ,
                         handler.color, handler.rotation, handler.captureEntities,
+                        handler.maxTicks, handler.minObserveTicks,
                         handler.injectors, handler.injectorNames,
                         handler.sensors, handler.sensorNames,
                         editableCases, selectedCase
