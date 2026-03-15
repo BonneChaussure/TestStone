@@ -22,29 +22,27 @@ public class TestExecutor {
     public enum Phase { RESTORE, INJECT, OBSERVE}
 
     public static final int MAX_TICKS    = 100;
-    public static final int MIN_OBSERVE_TICKS = 10;
+    public static final int MIN_OBSERVE_TICKS = 2;
 
     private final TestBenchBlockEntity be;
     private final ServerWorld world;
     private final List<TestCase> cases;
-
-    // Décalage d'index pour run single test :
-    // onCaseResult transmettra (currentCase + indexOffset) au lieu de currentCase,
-    // ce qui permet à SyncTestResultPacket de cibler le bon slot dans la liste complète.
     private final int indexOffset;
 
-    private int currentCase  = 0;
-    private Phase phase      = Phase.RESTORE;
-    private int tickCounter  = 0;
+    private int currentCase        = 0;
+    private int currentObservation = 0;   // index dans tc.observations()
+    private Phase phase            = Phase.RESTORE;
+    private int tickCounter        = 0;
     private final Boolean[] results;
 
-    /** Constructeur normal — lance tous les cas passés, index offset = 0. */
+    /** Constructeur normal — lance tous les cas, index offset = 0. */
     public TestExecutor(TestBenchBlockEntity be, ServerWorld world, List<TestCase> cases) {
         this(be, world, cases, 0);
     }
 
     /** Constructeur avec offset — utilisé pour "run single test". */
-    public TestExecutor(TestBenchBlockEntity be, ServerWorld world, List<TestCase> cases, int indexOffset) {
+    public TestExecutor(TestBenchBlockEntity be, ServerWorld world,
+                        List<TestCase> cases, int indexOffset) {
         this.be          = be;
         this.world       = world;
         this.cases       = cases;
@@ -79,22 +77,45 @@ public class TestExecutor {
 
             case INJECT -> {
                 applyInjectors(tc);
-                applyExpected(tc);
+                applyExpected(tc, currentObservation);
                 phase = Phase.OBSERVE;
                 tickCounter = 0;
             }
 
             case OBSERVE -> {
                 tickCounter++;
-                List<String> failures = getFailures(tc);
+                Map<BlockPos, Boolean> obs = tc.observations().get(currentObservation);
+                List<String> failures = getFailures(obs);
+
                 if (tickCounter >= MIN_OBSERVE_TICKS && failures.isEmpty()) {
-                    results[currentCase] = true;
-                    sendToAll(Text.literal("✔ PASS").formatted(Formatting.GREEN, Formatting.BOLD));
-                    nextCase();
+                    // Observation courante validée
+                    int totalObs = tc.observations().size();
+                    if (totalObs > 1) {
+                        sendToAll(Text.literal("  ✔ obs " + (currentObservation + 1) + "/" + totalObs)
+                                .formatted(Formatting.GREEN));
+                    }
+                    currentObservation++;
+                    if (currentObservation < totalObs) {
+                        // Il reste des observations — on continue sans restaurer
+                        applyExpected(tc, currentObservation);
+                        tickCounter = 0;
+                        // phase reste OBSERVE
+                    } else {
+                        // Toutes les observations passées → cas PASS
+                        results[currentCase] = true;
+                        sendToAll(Text.literal("✔ PASS").formatted(Formatting.GREEN, Formatting.BOLD));
+                        nextCase();
+                    }
                 } else if (tickCounter >= MAX_TICKS) {
+                    // Timeout sur cette observation → cas FAIL
                     results[currentCase] = false;
-                    sendToAll(Text.literal("✘ FAIL").formatted(Formatting.RED, Formatting.BOLD));
-                    // Détail des erreurs
+                    int totalObs = tc.observations().size();
+                    if (totalObs > 1) {
+                        sendToAll(Text.literal("✘ FAIL (obs " + (currentObservation + 1) + "/" + totalObs + ")")
+                                .formatted(Formatting.RED, Formatting.BOLD));
+                    } else {
+                        sendToAll(Text.literal("✘ FAIL").formatted(Formatting.RED, Formatting.BOLD));
+                    }
                     for (String f : failures) {
                         sendToAll(Text.literal("  • " + f).formatted(Formatting.RED));
                     }
@@ -110,6 +131,7 @@ public class TestExecutor {
         // On transmet l'index réel dans la liste complète (currentCase + indexOffset)
         be.onCaseResult(currentCase + indexOffset, results[currentCase]);
         currentCase++;
+        currentObservation = 0;
         phase = Phase.RESTORE;
         tickCounter = 0;
     }
@@ -138,9 +160,9 @@ public class TestExecutor {
     // ── Vérification des sensors avec détail ─────────────────────────────────
 
     /** Retourne la liste des erreurs — vide = tout est bon */
-    private List<String> getFailures(TestCase tc) {
+    private List<String> getFailures(Map<BlockPos, Boolean> obs) {
         List<String> failures = new ArrayList<>();
-        for (Map.Entry<BlockPos, Boolean> e : tc.sensorExpected().entrySet()) {
+        for (Map.Entry<BlockPos, Boolean> e : obs.entrySet()) {
             BlockState state = world.getBlockState(e.getKey());
             if (!state.isOf(ModBlocks.SENSOR)) {
                 failures.add("Can't find sensor " + e.getKey().toShortString());
@@ -149,7 +171,6 @@ public class TestExecutor {
             boolean actual   = state.get(SensorBlock.POWERED);
             boolean expected = e.getValue();
             if (actual != expected) {
-                // Récupère le nom custom si disponible
                 String sensorName = (world.getBlockEntity(e.getKey()) instanceof SensorBlockEntity sbe
                         && !sbe.getCustomName().isEmpty())
                         ? sbe.getCustomName()
@@ -191,8 +212,9 @@ public class TestExecutor {
         }
     }
 
-    private void applyExpected(TestCase tc) {
-        for (Map.Entry<BlockPos, Boolean> e : tc.sensorExpected().entrySet()) {
+    private void applyExpected(TestCase tc, int obsIndex) {
+        Map<BlockPos, Boolean> obs = tc.observations().get(obsIndex);
+        for (Map.Entry<BlockPos, Boolean> e : obs.entrySet()) {
             BlockState state = world.getBlockState(e.getKey());
             if (state.isOf(ModBlocks.SENSOR))
                 world.setBlockState(e.getKey(), state.with(SensorBlock.EXPECTED, e.getValue()));

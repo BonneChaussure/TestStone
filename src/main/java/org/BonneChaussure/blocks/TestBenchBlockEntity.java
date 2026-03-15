@@ -227,8 +227,8 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         savedStructure.saveFromWorld(serverWorld, structureOrigin, size, CAPTURE_ENTITIES, null);
     }
 
-    public boolean restoreStructure(ServerWorld serverWorld) {
-        if (savedStructure == null || structureOrigin == null) return false;
+    public void restoreStructure(ServerWorld serverWorld) {
+        if (savedStructure == null || structureOrigin == null) return;
 
         int minX = Math.min(corner1.getX(), corner2.getX());
         int minY = Math.min(corner1.getY(), corner2.getY());
@@ -265,8 +265,6 @@ public class TestBenchBlockEntity extends BlockEntity implements ExtendedScreenH
         // ── 3. Vide les ticks schedulés ─────────────────────
         serverWorld.getBlockTickScheduler().clearNextTicks(region);
         serverWorld.getFluidTickScheduler().clearNextTicks(region);
-
-        return true;
     }
 
     // ── Sérialisation NBT ──────────────────────────────────────────────────────
